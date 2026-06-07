@@ -146,6 +146,11 @@ def open_folder(body: FolderBody):
         return {"ok": False, "error": str(exc)}
 
 
+@app.post("/api/pick-folder")
+def pick_folder():
+    return storage.pick_folder()
+
+
 @app.get("/api/settings")
 def get_settings():
     return settings_store.load_settings()

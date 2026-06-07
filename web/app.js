@@ -556,7 +556,12 @@
             h("label", { text: "Output folder" }),
             h("div", { class: "row" }, [
               h("input", { class: "input", type: "text", value: s.outputFolder, onChange: (e) => setSetting({ outputFolder: e.target.value }) }),
-              h("button", { class: "btn btn--ghost", onClick: () => toast("info", "Type the folder path", "Edit the path field, then use Save to folder.") }, [ic("folder"), " Browse…"]),
+              h("button", { class: "btn btn--ghost", onClick: async () => {
+                  try {
+                    const r = await api("/api/pick-folder", { method: "POST" });
+                    if (r.folder) { setSetting({ outputFolder: r.folder }); toast("ok", "Folder selected", r.folder); }
+                  } catch (e) { toast("info", "Picker unavailable", "Type the path instead."); }
+                } }, [ic("folder"), " Browse…"]),
               h("button", { class: "btn btn--ghost", onClick: async () => { try { await api("/api/open-folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ folder: s.outputFolder }) }); toast("ok", "Folder opened", s.outputFolder); } catch (e) { toast("info", "Could not open", String(e)); } } }, [ic("folderOpen"), " Open"]),
             ]),
             h("div", { class: "field__hint" }, ["Default suggestion: ", h("code", { text: "~/Documents/Markitdown Output" })]),

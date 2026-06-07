@@ -1,5 +1,5 @@
 import os
-from server.storage import save_markdown, reveal_command
+from server.storage import save_markdown, reveal_command, _pick_folder_argv
 
 
 def test_save_markdown_writes_files(tmp_path):
@@ -34,3 +34,9 @@ def test_reveal_command_per_platform(tmp_path):
     assert reveal_command(f, "darwin")[0] == "open"
     assert reveal_command(f, "win32")[0] == "explorer"
     assert reveal_command(f, "linux")[0] == "xdg-open"
+
+
+def test_pick_folder_argv_per_platform():
+    assert _pick_folder_argv("darwin")[0] == "osascript"
+    assert _pick_folder_argv("win32")[0] == "powershell"
+    assert _pick_folder_argv("linux")[0] == "zenity"

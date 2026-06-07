@@ -55,3 +55,29 @@ def open_folder(folder: str) -> dict:
     os.makedirs(target, exist_ok=True)
     subprocess.Popen(reveal_command(target, sys.platform))
     return {"ok": True, "folder": target}
+
+
+def _pick_folder_argv(platform: str) -> list[str]:
+    """Native folder-chooser command for the platform (pure / testable)."""
+    if platform == "darwin":
+        return ["osascript", "-e",
+                'POSIX path of (choose folder with prompt "Choose the output folder")']
+    if platform == "win32":
+        ps = ("Add-Type -AssemblyName System.Windows.Forms; "
+              "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+              "if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }")
+        return ["powershell", "-NoProfile", "-Command", ps]
+    return ["zenity", "--file-selection", "--directory"]
+
+
+def pick_folder() -> dict:
+    """Open the OS folder dialog on this machine; return {folder} or {cancelled}."""
+    try:
+        res = subprocess.run(_pick_folder_argv(sys.platform),
+                             capture_output=True, text=True, timeout=180)
+        path = (res.stdout or "").strip()
+        if path:
+            return {"folder": path.rstrip("/") or path}
+        return {"cancelled": True}
+    except Exception as exc:
+        return {"cancelled": True, "error": str(exc)}
