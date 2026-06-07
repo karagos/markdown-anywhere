@@ -1,5 +1,5 @@
 import os
-from server.storage import save_markdown, reveal_command, _pick_folder_argv
+from server.storage import save_markdown, reveal_command, _pick_folder_argv, _pick_file_argv
 
 
 def test_save_markdown_writes_files(tmp_path):
@@ -40,3 +40,9 @@ def test_pick_folder_argv_per_platform():
     assert _pick_folder_argv("darwin")[0] == "osascript"
     assert _pick_folder_argv("win32")[0] == "powershell"
     assert _pick_folder_argv("linux")[0] == "zenity"
+
+
+def test_pick_file_argv_per_platform():
+    assert _pick_file_argv("darwin")[0] == "osascript"
+    assert _pick_file_argv("win32")[0] == "powershell"
+    assert _pick_file_argv("linux")[0] == "zenity"

@@ -9,7 +9,8 @@ DEFAULTS = {
     "provider": "LM Studio",
     "endpoint": "http://localhost:1234/v1",
     "model": "",
-    "pdfMode": "fast",   # "fast" (structured) | "ai" (vision model)
+    "pdfMode": "fast",        # "fast" (structured) | "ai" (vision model)
+    "youtubeCookies": "",     # optional path to a Netscape cookies.txt for YouTube
 }
 
 

@@ -81,3 +81,27 @@ def pick_folder() -> dict:
         return {"cancelled": True}
     except Exception as exc:
         return {"cancelled": True, "error": str(exc)}
+
+
+def _pick_file_argv(platform: str) -> list[str]:
+    """Native file-chooser command for the platform (pure / testable)."""
+    if platform == "darwin":
+        return ["osascript", "-e",
+                'POSIX path of (choose file with prompt "Choose your cookies.txt")']
+    if platform == "win32":
+        ps = ("Add-Type -AssemblyName System.Windows.Forms; "
+              "$d = New-Object System.Windows.Forms.OpenFileDialog; "
+              "if ($d.ShowDialog() -eq 'OK') { Write-Output $d.FileName }")
+        return ["powershell", "-NoProfile", "-Command", ps]
+    return ["zenity", "--file-selection"]
+
+
+def pick_file() -> dict:
+    """Open the OS file dialog on this machine; return {path} or {cancelled}."""
+    try:
+        res = subprocess.run(_pick_file_argv(sys.platform),
+                             capture_output=True, text=True, timeout=180)
+        path = (res.stdout or "").strip()
+        return {"path": path} if path else {"cancelled": True}
+    except Exception as exc:
+        return {"cancelled": True, "error": str(exc)}

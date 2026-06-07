@@ -1,4 +1,5 @@
-from server.youtube import video_id, is_youtube_url
+import pytest
+from server.youtube import video_id, is_youtube_url, cookie_session
 
 VID = "QQEgIo4Juxg"
 
@@ -28,3 +29,21 @@ def test_non_youtube_is_none():
 
 def test_is_youtube_url_true():
     assert is_youtube_url(f"https://www.youtube.com/watch?v={VID}") is True
+
+
+def test_cookie_session_none_when_no_path():
+    assert cookie_session("") is None
+    assert cookie_session(None) is None
+
+
+def test_cookie_session_loads_netscape_cookies(tmp_path):
+    p = tmp_path / "cookies.txt"
+    line = "\t".join([".youtube.com", "TRUE", "/", "TRUE", "9999999999", "CONSENT", "YES+1"])
+    p.write_text("# Netscape HTTP Cookie File\n" + line + "\n")
+    session = cookie_session(str(p))
+    assert any(c.name == "CONSENT" for c in session.cookies)
+
+
+def test_cookie_session_missing_file_raises(tmp_path):
+    with pytest.raises(Exception):
+        cookie_session(str(tmp_path / "nope.txt"))

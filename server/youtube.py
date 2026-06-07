@@ -37,13 +37,39 @@ def _title(vid: str):
     return None
 
 
-def fetch_youtube_markdown(url: str) -> str:
-    """Build Markdown (title + transcript) for a YouTube URL. Raises on failure."""
+def cookie_session(cookie_path: str):
+    """Build a requests.Session loaded with cookies from a Netscape cookies.txt.
+
+    Returns None when no path is given. Raises if the file is missing/invalid.
+    """
+    import os
+    if not cookie_path:
+        return None
+    import http.cookiejar
+    import requests
+    path = os.path.expanduser(cookie_path)
+    if not os.path.isfile(path):
+        raise ValueError(f"Cookies file not found: {cookie_path}")
+    jar = http.cookiejar.MozillaCookieJar(path)
+    jar.load(ignore_discard=True, ignore_expires=True)
+    session = requests.Session()
+    session.cookies = jar
+    return session
+
+
+def fetch_youtube_markdown(url: str, cookie_path: str | None = None) -> str:
+    """Build Markdown (title + transcript) for a YouTube URL. Raises on failure.
+
+    If cookie_path is given, requests are made with those cookies (logged-in
+    session), which sharply reduces YouTube's bot-blocking.
+    """
     vid = video_id(url)
     if not vid:
         raise ValueError("Not a recognizable YouTube URL.")
     from youtube_transcript_api import YouTubeTranscriptApi
-    fetched = YouTubeTranscriptApi().fetch(vid)  # raises if no transcript available
+    session = cookie_session(cookie_path)
+    api = YouTubeTranscriptApi(http_client=session) if session else YouTubeTranscriptApi()
+    fetched = api.fetch(vid)  # raises if no transcript available
     segments = [s.text.strip() for s in fetched if getattr(s, "text", "").strip()]
     if not segments:
         raise ValueError("No transcript text was returned.")

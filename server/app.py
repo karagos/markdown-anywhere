@@ -122,8 +122,9 @@ class UrlBody(BaseModel):
 def convert_url(body: UrlBody):
     if youtube.is_youtube_url(body.url):
         vid = youtube.video_id(body.url)
+        cookie_path = (settings_store.load_settings().get("youtubeCookies") or "").strip() or None
         try:
-            md = youtube.fetch_youtube_markdown(body.url)
+            md = youtube.fetch_youtube_markdown(body.url, cookie_path=cookie_path)
             r = ConversionResult(name=f"youtube-{vid}.md", markdown=md,
                                  status="done", source_type="url")
         except Exception as exc:
@@ -172,6 +173,11 @@ def open_folder(body: FolderBody):
 @app.post("/api/pick-folder")
 def pick_folder():
     return storage.pick_folder()
+
+
+@app.post("/api/pick-file")
+def pick_file():
+    return storage.pick_file()
 
 
 @app.get("/api/settings")
