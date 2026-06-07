@@ -1,0 +1,7 @@
+markitdown[all]
+fastapi
+uvicorn[standard]
+python-multipart
+openai
+httpx
+pytest
