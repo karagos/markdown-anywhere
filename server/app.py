@@ -15,6 +15,7 @@ from server.converter import (
 )
 from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf
 from server import pdf_text
+from server.tokens import count_tokens
 
 app = FastAPI(title="Markitdown Local App")
 
@@ -29,7 +30,9 @@ NO_TEXT_NOTE = (
 
 def _result_to_dict(r: ConversionResult) -> dict:
     return {"name": r.name, "markdown": r.markdown, "status": r.status,
-            "error": r.error, "source_type": r.source_type}
+            "error": r.error, "source_type": r.source_type,
+            "tokens": count_tokens(r.markdown) if r.status == "done" else 0,
+            "chars": len(r.markdown) if r.status == "done" else 0}
 
 
 def _ai_pdf(path: str, name: str, ocr: dict, label: str) -> ConversionResult:

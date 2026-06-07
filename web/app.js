@@ -45,7 +45,7 @@
   // ---------- derived ----------
   const doneItems = () => state.queue.filter((it) => it.status === "done");
   const selectedDone = () => state.queue.filter((it) => it.selected && it.status === "done");
-  const sessionSaved = () => state.history.reduce((s, hh) => s + L.estSaved(hh.kind, hh.tokens), 0);
+  const sessionTokens = () => state.history.reduce((s, hh) => s + (hh.tokens || 0), 0);
 
   // ---------- API ----------
   async function api(path, opts) {
@@ -78,8 +78,8 @@
     item.markdown = res.markdown || "";
     item.error = res.error || "";
     if (res.status === "done") {
-      item.chars = item.markdown.length;
-      item.tokens = L.estTokens(item.chars);
+      item.chars = res.chars || item.markdown.length;
+      item.tokens = res.tokens != null ? res.tokens : L.estTokens(item.markdown.length);
       addHistory(item);
       if (state.settings.autoSave) autoSave(item);
     } else if (res.status === "error") {
@@ -114,7 +114,7 @@
           const r = results[i]; const dd = L.detectType(r.name);
           const sub = { id: uid(), name: r.name, kind: dd.kind, iconLabel: dd.label, typeLabel: dd.type,
             size: null, status: r.status, markdown: r.markdown || "", selected: false };
-          if (r.status === "done") { sub.chars = sub.markdown.length; sub.tokens = L.estTokens(sub.chars); addHistory(sub); }
+          if (r.status === "done") { sub.chars = r.chars || sub.markdown.length; sub.tokens = r.tokens != null ? r.tokens : L.estTokens(sub.markdown.length); addHistory(sub); }
           state.queue.splice(state.queue.indexOf(item) + i, 0, sub);
         }
       }
@@ -306,23 +306,23 @@
 
   // ---- convert view ----
   function savingsStrip() {
-    const saved = sessionSaved(), count = state.history.length;
+    const total = sessionTokens(), count = state.history.length;
     if (count === 0) {
       return h("div", { class: "savings-strip savings-strip--empty" }, [
         h("span", { class: "ss-ic" }, [ic("coins")]),
         h("div", { class: "ss-main" }, [
-          h("div", { class: "ss-num-empty", text: "Track the tokens you save" }),
-          h("div", { class: "ss-sub", text: "Convert a file or link to start counting — clean Markdown costs far fewer tokens than raw uploads." }),
+          h("div", { class: "ss-num-empty", text: "Track the tokens you produce" }),
+          h("div", { class: "ss-sub", text: "Convert a file or link to start counting — clean Markdown is far more token-efficient than sending raw files." }),
         ]),
       ]);
     }
     return h("div", { class: "savings-strip" }, [
       h("span", { class: "ss-ic" }, [ic("coins")]),
       h("div", { class: "ss-main" }, [
-        h("div", { class: "ss-num" }, [h("b", { text: "≈ " + L.fmtNum(saved) }), " tokens saved this session"]),
-        h("div", { class: "ss-sub", text: `across ${count} conversion${count !== 1 ? "s" : ""} — vs. sending the raw files to your AI` }),
+        h("div", { class: "ss-num" }, [h("b", { text: "≈ " + L.fmtNum(total) }), " tokens of clean Markdown this session"]),
+        h("div", { class: "ss-sub", text: `across ${count} file${count !== 1 ? "s" : ""} — ready to paste into your AI` }),
       ]),
-      h("span", { class: "ss-hint", title: "Rough estimate (≈ 4 characters per token)", text: "estimate" }),
+      h("span", { class: "ss-hint", title: "Counted with the GPT-4o tokenizer (o200k). Other models differ slightly.", text: "GPT-4o" }),
     ]);
   }
 
@@ -480,7 +480,7 @@
           h("button", { class: state.previewMode === "rendered" ? "on" : "", onClick: () => { state.previewMode = "rendered"; renderView(); }, text: "Rendered" }),
           h("button", { class: state.previewMode === "raw" ? "on" : "", onClick: () => { state.previewMode = "raw"; renderView(); }, text: "Raw" }),
         ]),
-        h("span", { class: "saved-badge", title: "Estimated tokens saved vs. the raw file" }, [ic("coins"), " saves ~" + L.fmtNum(L.estSaved(item.kind, item.tokens)) + " tok"]));
+        h("span", { class: "saved-badge", title: "Token count of this Markdown (GPT-4o tokenizer)" }, [ic("coins"), " ≈ " + L.fmtNum(item.tokens || 0) + " tokens"]));
     }
     const body = h("div", { class: "preview__body" });
     if (!item) {
