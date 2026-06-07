@@ -57,37 +57,62 @@ def cookie_session(cookie_path: str):
     return session
 
 
+# Cookies that indicate a genuinely logged-in YouTube/Google session.
+_AUTH_COOKIES = {
+    "SID", "HSID", "SSID", "APISID", "SAPISID", "LOGIN_INFO",
+    "__Secure-1PSID", "__Secure-3PSID", "__Secure-1PAPISID", "__Secure-3PAPISID",
+}
+
+
+def _netscape_row(fields):
+    """A Netscape cookie row: >=7 fields and a domain in column 0."""
+    return len(fields) >= 7 and ("." in fields[0])
+
+
 def cookies_from_text(text: str):
     """Parse pasted cookie content into a requests.Session.
 
-    Accepts either the Netscape cookies.txt format (tab-separated lines) or a
-    browser 'Cookie:' header string ('name=value; name2=value2'). Returns None
-    for empty input; raises if nothing parseable is found.
+    Robust to tabs being lost on paste: a row is treated as Netscape format if it
+    splits (on tabs OR whitespace) into >=7 fields with a domain first. Otherwise
+    falls back to a 'name=value; name2=value2' header string. Returns None for
+    empty input; raises if nothing parseable is found.
     """
     text = (text or "").strip()
     if not text:
         return None
     import requests
     session = requests.Session()
-    lines = [ln for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("#")]
     added = 0
-    if any("\t" in ln for ln in lines):  # Netscape cookies.txt
-        for ln in lines:
-            parts = ln.split("\t")
-            if len(parts) >= 7:
-                domain, _flag, path, _secure, _expiry, name, value = parts[:7]
-                session.cookies.set(name, value, domain=domain or ".youtube.com", path=path or "/")
-                added += 1
-    else:  # 'name=value; name2=value2' header style
+    for ln in text.splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#"):
+            continue
+        fields = ln.split("\t") if "\t" in ln else ln.split()
+        if _netscape_row(fields):
+            domain, path = fields[0], (fields[2] or "/")
+            name = fields[5]
+            value = " ".join(fields[6:]) if len(fields) > 7 else fields[6]
+            session.cookies.set(name, value, domain=domain, path=path)
+            added += 1
+    if added == 0:  # header-style fallback
         for pair in text.replace("\n", ";").split(";"):
             if "=" in pair:
                 name, value = pair.split("=", 1)
-                if name.strip():
-                    session.cookies.set(name.strip(), value.strip(), domain=".youtube.com", path="/")
+                name = name.strip()
+                if name and " " not in name:
+                    session.cookies.set(name, value.strip(), domain=".youtube.com", path="/")
                     added += 1
-    if not added:
-        raise ValueError("No cookies found in the pasted content.")
+    if added == 0:
+        raise ValueError("No cookies found in the content.")
     return session
+
+
+def session_summary(session) -> dict:
+    """Non-sensitive summary: how many cookies, and whether it looks logged-in."""
+    if session is None:
+        return {"count": 0, "loggedIn": False}
+    names = {c.name for c in session.cookies}
+    return {"count": len(names), "loggedIn": bool(names & _AUTH_COOKIES)}
 
 
 def build_session(cookie_path: str | None = None, cookie_text: str | None = None):

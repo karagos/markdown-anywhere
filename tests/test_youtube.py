@@ -1,6 +1,7 @@
 import pytest
 from server.youtube import (
     video_id, is_youtube_url, cookie_session, cookies_from_text, build_session,
+    session_summary,
 )
 
 VID = "QQEgIo4Juxg"
@@ -77,3 +78,23 @@ def test_build_session_text_takes_priority():
     # pasted text used even when a (bad) path is also given
     assert build_session(cookie_path="/nonexistent/cookies.txt", cookie_text="A=1; B=2") is not None
     assert build_session(None, None) is None
+
+
+def test_cookies_from_text_space_separated_row():
+    # tabs lost on paste → space-separated Netscape row still parses
+    row = ".youtube.com TRUE / TRUE 9999999999 SID abc123"
+    s = cookies_from_text("# Netscape HTTP Cookie File\n" + row + "\n")
+    assert any(c.name == "SID" for c in s.cookies)
+
+
+def test_session_summary_detects_login_cookies():
+    summ = session_summary(cookies_from_text("SID=abc; HSID=def; CONSENT=YES"))
+    assert summ["count"] >= 2 and summ["loggedIn"] is True
+
+
+def test_session_summary_no_login_cookies():
+    assert session_summary(cookies_from_text("CONSENT=YES; SOCS=abc"))["loggedIn"] is False
+
+
+def test_session_summary_none():
+    assert session_summary(None) == {"count": 0, "loggedIn": False}

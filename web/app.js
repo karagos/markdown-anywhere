@@ -242,6 +242,13 @@
     renderView();
   }
 
+  async function checkYtCookies() {
+    state.ytCookies = { checking: true }; renderView();
+    try { state.ytCookies = await api("/api/youtube-cookies-status"); }
+    catch (_) { state.ytCookies = { error: "Couldn't check cookies." }; }
+    renderView();
+  }
+
   // ===================================================================
   // RENDER
   // ===================================================================
@@ -549,6 +556,16 @@
     else if (s.connection === "testing") conn = h("span", { class: "conn conn--idle" }, [h("span", { class: "dot dot--accent dot--pulse" }), " Testing…"]);
     else conn = h("span", { class: "conn conn--idle" }, [h("span", { class: "dot dot--off" }), " Not tested yet"]);
 
+    let ytStatus = null;
+    const y = state.ytCookies;
+    if (y) {
+      if (y.checking) ytStatus = h("span", { class: "conn conn--idle" }, [h("span", { class: "dot dot--accent dot--pulse" }), " Checking…"]);
+      else if (y.error) ytStatus = h("span", { class: "conn conn--err" }, [h("span", { class: "dot dot--err" }), " " + y.error]);
+      else if (!y.configured) ytStatus = h("span", { class: "conn conn--idle" }, [h("span", { class: "dot dot--off" }), " No cookies set yet"]);
+      else if (y.loggedIn) ytStatus = h("span", { class: "conn conn--ok" }, [h("span", { class: "dot dot--ok" }), ` ${y.count} cookies — looks logged in ✓`]);
+      else ytStatus = h("span", { class: "conn conn--err" }, [h("span", { class: "dot dot--err" }), ` ${y.count} cookie(s), but no login session detected — re-export while logged in (the file option is more reliable than paste).`]);
+    }
+
     return h("div", { class: "settings view-enter" }, [
       h("div", { class: "setcard" }, [
         h("div", { class: "setcard__head" }, [h("h2", {}, [ic("folder"), " Output"]), h("p", { text: "Where converted Markdown files are saved when you choose “Save to folder”." })]),
@@ -634,10 +651,16 @@
                 } }, [ic("folder"), " Browse…"]),
             ]),
           ]),
+          h("div", { class: "field" }, [
+            h("div", { class: "row" }, [
+              h("button", { class: "btn btn--ghost", onClick: checkYtCookies }, [ic("check"), " Check cookies"]),
+            ]),
+            ytStatus ? h("div", { class: "row", style: { marginTop: "2px" } }, [ytStatus]) : null,
+          ]),
           h("div", { class: "field__hint" }, [
             "Export with the free “Get cookies.txt LOCALLY” browser extension on youtube.com, then paste it above (or pick the file). ",
             h("b", { text: "Cookies are your logged-in session — keep them private." }),
-            " They stay on your machine (pasted text is saved in your local settings) and are used only for YouTube. Pasted text takes priority; re-paste if it stops working.",
+            " They stay on your machine (pasted text is saved in your local settings) and are used only for YouTube. Pasted text takes priority over the file; re-export if it stops working.",
           ]),
         ]),
       ]),

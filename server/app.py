@@ -131,11 +131,16 @@ def convert_url(body: UrlBody):
             r = ConversionResult(name=f"youtube-{vid}.md", markdown=md,
                                  status="done", source_type="url")
         except Exception as exc:
-            r = ConversionResult(
-                name=body.url, markdown="", status="error",
-                error=("Couldn't fetch a transcript for this video — it may have "
-                       f"captions disabled, or YouTube is blocking access. ({exc})"),
-                source_type="url")
+            if type(exc).__name__ in ("IpBlocked", "RequestBlocked"):
+                emsg = ("YouTube has temporarily blocked this network's IP from fetching "
+                        "transcripts (usually from too many requests). Try again later, or "
+                        "from a different network (e.g. a phone hotspot or VPN). Note: cookies "
+                        "make you look logged-in but do not lift an IP block.")
+            else:
+                emsg = ("Couldn't fetch a transcript for this video — it may have captions "
+                        f"disabled or no transcript. ({exc})")
+            r = ConversionResult(name=body.url, markdown="", status="error",
+                                 error=emsg, source_type="url")
         return {"results": [_result_to_dict(r)]}
     ocr = llm_kwargs(body.ocr_enabled, body.endpoint, body.model)
     converter = make_converter(ocr)
@@ -181,6 +186,19 @@ def pick_folder():
 @app.post("/api/pick-file")
 def pick_file():
     return storage.pick_file()
+
+
+@app.get("/api/youtube-cookies-status")
+def youtube_cookies_status():
+    s = settings_store.load_settings()
+    path = (s.get("youtubeCookies") or "").strip() or None
+    text = (s.get("youtubeCookiesText") or "").strip() or None
+    if not path and not text:
+        return {"configured": False, "count": 0, "loggedIn": False}
+    try:
+        return {"configured": True, **youtube.session_summary(youtube.build_session(path, text))}
+    except Exception as exc:
+        return {"configured": True, "count": 0, "loggedIn": False, "error": str(exc)}
 
 
 @app.get("/api/settings")
