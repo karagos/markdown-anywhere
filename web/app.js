@@ -3,6 +3,7 @@
 (function () {
   const L = window.MDLib;
   const ic = (name, cls) => { const s = window.svgIcon(name); if (cls) s.setAttribute("class", cls); return s; };
+  const sizedIc = (name, px) => { const s = window.svgIcon(name); s.setAttribute("width", px); s.setAttribute("height", px); s.style.flex = "none"; s.style.opacity = "0.6"; return s; };
 
   // ---------- tiny DOM builder ----------
   function h(tag, attrs, children) {
@@ -494,7 +495,7 @@
       h("button", { class: "btn btn--ghost btn--sm", onClick: () => onAction(item.id, "copy") }, [ic("copy"), " Copy"]),
       h("button", { class: "btn btn--ghost btn--sm", onClick: () => onAction(item.id, "save") }, [ic("save"), " Save .md"]),
       h("span", { style: { marginLeft: "auto", fontSize: "12.5px", color: "var(--muted)", display: "flex", alignItems: "center", gap: "6px", minWidth: "0" } },
-        [ic("file"), h("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, text: item.name })]),
+        [sizedIc("file", 14), h("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, text: item.name })]),
     ]));
     panel.append(body);
     return panel;
