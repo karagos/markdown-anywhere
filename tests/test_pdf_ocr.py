@@ -1,5 +1,11 @@
 import os
-from server.pdf_ocr import should_ocr_pdf, render_pdf_pages, ocr_pdf
+from server.pdf_ocr import should_ocr_pdf, render_pdf_pages, ocr_pdf, use_ai_pdf
+
+
+def test_use_ai_pdf_requires_mode_and_model():
+    assert use_ai_pdf("ai", {"endpoint": "x", "model": "m"}) is True
+    assert use_ai_pdf("ai", None) is False          # no model → can't use AI
+    assert use_ai_pdf("fast", {"endpoint": "x", "model": "m"}) is False
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 PDF2 = os.path.join(FIX, "sample_2page.pdf")

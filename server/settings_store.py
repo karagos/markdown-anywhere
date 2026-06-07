@@ -9,6 +9,7 @@ DEFAULTS = {
     "provider": "LM Studio",
     "endpoint": "http://localhost:1234/v1",
     "model": "",
+    "pdfMode": "fast",   # "fast" (structured) | "ai" (vision model)
 }
 
 

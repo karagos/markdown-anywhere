@@ -13,7 +13,7 @@ from server.converter import (
     make_converter, convert_source, expand_zip, is_supported,
     ConversionResult, mdfilename,
 )
-from server.pdf_ocr import build_llm_client, ocr_pdf
+from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf
 from server import pdf_text
 
 app = FastAPI(title="Markitdown Local App")
@@ -32,28 +32,33 @@ def _result_to_dict(r: ConversionResult) -> dict:
             "error": r.error, "source_type": r.source_type}
 
 
-def convert_pdf(path: str, display_name: str, ocr: dict | None) -> ConversionResult:
-    """PDF → structured Markdown (headings + columns). Image-only PDFs fall back to OCR."""
+def _ai_pdf(path: str, name: str, ocr: dict, label: str) -> ConversionResult:
+    try:
+        client = build_llm_client(ocr["endpoint"])
+        text = ocr_pdf(path, client, ocr["model"])
+        return ConversionResult(name=name, markdown=text, status="done", source_type=".pdf")
+    except Exception as exc:
+        return ConversionResult(name=name, markdown="", status="error",
+                                error=f"{label} failed: {exc}", source_type=".pdf")
+
+
+def convert_pdf(path: str, display_name: str, ocr: dict | None,
+                mode: str = "fast") -> ConversionResult:
+    """PDF → Markdown. mode 'ai' uses the vision model; 'fast' uses the structured
+    extractor (with an OCR fallback for image-only PDFs)."""
+    name = mdfilename(display_name)
+    if use_ai_pdf(mode, ocr):
+        return _ai_pdf(path, name, ocr, "AI PDF conversion")
     try:
         md = pdf_text.extract_pdf_markdown(path)
     except Exception:
         md = ""
     if md.strip():
-        return ConversionResult(name=mdfilename(display_name), markdown=md,
-                                status="done", source_type=".pdf")
+        return ConversionResult(name=name, markdown=md, status="done", source_type=".pdf")
     # No text layer → scanned/image-only PDF.
     if ocr:
-        try:
-            client = build_llm_client(ocr["endpoint"])
-            text = ocr_pdf(path, client, ocr["model"])
-            return ConversionResult(name=mdfilename(display_name), markdown=text,
-                                    status="done", source_type=".pdf")
-        except Exception as exc:
-            return ConversionResult(name=mdfilename(display_name), markdown="",
-                                    status="error", error=f"PDF OCR failed: {exc}",
-                                    source_type=".pdf")
-    return ConversionResult(name=mdfilename(display_name), markdown=NO_TEXT_NOTE,
-                            status="done", source_type=".pdf")
+        return _ai_pdf(path, name, ocr, "PDF OCR")
+    return ConversionResult(name=name, markdown=NO_TEXT_NOTE, status="done", source_type=".pdf")
 
 
 @app.get("/api/health")
@@ -72,7 +77,8 @@ def ocr_status():
 async def convert(file: UploadFile = File(...),
                   ocr_enabled: bool = Form(False),
                   endpoint: str | None = Form(None),
-                  model: str = Form(config.DEFAULT_VISION_MODEL)):
+                  model: str = Form(config.DEFAULT_VISION_MODEL),
+                  pdf_mode: str = Form("fast")):
     ocr = llm_kwargs(ocr_enabled, endpoint, model)
     converter = make_converter(ocr)
     results: list[ConversionResult] = []
@@ -86,11 +92,11 @@ async def convert(file: UploadFile = File(...),
         if suffix.lower() == ".zip":
             for entry_name, entry_path in expand_zip(src_path, os.path.join(tmp, "z")):
                 if entry_name.lower().endswith(".pdf"):
-                    results.append(convert_pdf(entry_path, entry_name, ocr))
+                    results.append(convert_pdf(entry_path, entry_name, ocr, pdf_mode))
                 else:
                     results.append(convert_source(entry_path, converter, display_name=entry_name))
         elif suffix.lower() == ".pdf":
-            results.append(convert_pdf(src_path, file.filename, ocr))
+            results.append(convert_pdf(src_path, file.filename, ocr, pdf_mode))
         elif not is_supported(file.filename):
             results.append(ConversionResult(name=file.filename, markdown="",
                                             status="unsupported",

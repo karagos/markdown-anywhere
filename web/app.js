@@ -38,7 +38,7 @@
     settings: {
       outputFolder: "~/Documents/Markitdown Output", autoSave: false,
       ocrEnabled: false, provider: "LM Studio", endpoint: "http://localhost:1234/v1",
-      model: "", models: [], connection: "idle",
+      model: "", models: [], connection: "idle", pdfMode: "fast",
     },
   };
 
@@ -104,6 +104,7 @@
       fd.append("ocr_enabled", o.ocr_enabled);
       if (o.endpoint) fd.append("endpoint", o.endpoint);
       fd.append("model", o.model);
+      fd.append("pdf_mode", state.settings.pdfMode || "fast");
       const data = await api("/api/convert", { method: "POST", body: fd });
       const results = data.results || [];
       if (!results.length) { item.status = "error"; item.errorShort = "No result"; }
@@ -573,7 +574,7 @@
       h("div", { class: "setcard" }, [
         h("div", { class: "setcard__head" }, [h("h2", {}, [ic("sparkle"), " OCR — image & scanned-PDF text"]), h("p", { text: "Uses a local vision model (Ollama or LM Studio). Nothing leaves your machine." })]),
         h("div", { class: "setcard__body" }, [
-          h("div", { class: "toggle-row" }, [sw(s.ocrEnabled, () => setSetting({ ocrEnabled: !s.ocrEnabled })),
+          h("div", { class: "toggle-row" }, [sw(s.ocrEnabled, () => setSetting(s.ocrEnabled ? { ocrEnabled: false, pdfMode: "fast" } : { ocrEnabled: true })),
             h("div", { class: "toggle-text" }, [h("b", { text: "Enable OCR" }), h("span", { text: "Extract text from scanned PDFs and images." })])]),
           h("div", { class: "field", style: dim(s.ocrEnabled) }, [
             h("label", {}, ["Provider endpoint ", h("span", { class: "opt", text: "(auto-detected)" })]),
@@ -588,6 +589,24 @@
             h("div", { class: "row" }, [modelSelect, h("button", { class: "btn btn--ghost", onClick: testConnection }, [ic("plug"), " Test connection"])]),
             h("div", { class: "row", style: { marginTop: "2px" } }, [conn]),
             h("div", { class: "field__hint" }, ["Start LM Studio or run ", h("code", { text: "ollama serve" }), ". Suggested model: ", h("code", { text: "qwen2.5vl:7b" }), "."]),
+          ]),
+        ]),
+      ]),
+      h("div", { class: "setcard" }, [
+        h("div", { class: "setcard__head" }, [h("h2", {}, [ic("file"), " PDF conversion"]),
+          h("p", { text: "How PDF files are turned into Markdown." })]),
+        h("div", { class: "setcard__body" }, [
+          h("div", { class: "field" }, [
+            h("label", { text: "Mode" }),
+            h("div", { class: "seg" }, [
+              h("button", { class: s.pdfMode !== "ai" ? "on" : "", onClick: () => setSetting({ pdfMode: "fast" }), text: "Fast — structured" }),
+              h("button", { class: s.pdfMode === "ai" ? "on" : "", disabled: !s.ocrEnabled,
+                style: !s.ocrEnabled ? { opacity: "0.5", cursor: "not-allowed" } : {},
+                onClick: () => { if (s.ocrEnabled) setSetting({ pdfMode: "ai" }); }, text: "AI — vision model" }),
+            ]),
+            h("div", { class: "field__hint" }, [
+              "Fast: instant, offline — structured headings + columns. AI: best layout, tables and reading order via the vision model — slower (one pass per page). ",
+              !s.ocrEnabled ? h("b", { text: "Enable OCR above to use AI mode." }) : null]),
           ]),
         ]),
       ]),
