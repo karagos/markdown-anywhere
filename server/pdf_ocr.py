@@ -15,6 +15,11 @@ def should_ocr_pdf(source_type: str, markdown: str, ocr: dict | None) -> bool:
     return source_type == ".pdf" and not (markdown or "").strip() and bool(ocr)
 
 
+def use_ai_pdf(mode: str, ocr: dict | None) -> bool:
+    """True when the user chose AI PDF mode AND a local vision model is configured."""
+    return mode == "ai" and bool(ocr)
+
+
 def build_llm_client(endpoint: str):
     """Build an OpenAI-compatible client pointed at a local endpoint."""
     from openai import OpenAI

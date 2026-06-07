@@ -3,52 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Markitdown Local App — by CAIO</title>
+  <title>Markitdown by CAIO Group</title>
+  <link rel="stylesheet" href="/fonts.css" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <h1>Markdown Converter</h1>
-    <button id="settingsBtn" class="ghost" aria-label="Settings">⚙ Settings</button>
-  </header>
+  <div id="root"></div>
 
-  <section id="dropzone" class="dropzone">
-    <p>Drag files here, or <label class="link">browse<input id="fileInput" type="file" multiple hidden /></label></p>
-    <div class="urlrow">
-      <input id="urlInput" type="url" placeholder="…or paste a web link (page or YouTube)" />
-      <button id="urlBtn">Convert link</button>
-    </div>
-  </section>
-
-  <section id="settingsPanel" class="panel hidden">
-    <label><input type="checkbox" id="ocrEnabled" /> Enable image OCR (local LLM)</label>
-    <label>Vision model <input id="ocrModel" type="text" /></label>
-    <p id="ocrStatus" class="muted">Checking for a local model…</p>
-  </section>
-
-  <section class="workspace">
-    <div class="queue">
-      <div class="queue-actions">
-        <button id="mergeBtn">Merge selected → one .md</button>
-        <button id="zipBtn">Download all (.zip)</button>
-        <button id="clearBtn" class="ghost">Clear</button>
-      </div>
-      <ul id="queueList"></ul>
-    </div>
-    <div class="preview">
-      <div class="preview-actions">
-        <button id="toggleRaw" class="ghost">Raw ⇄ Rendered</button>
-        <button id="copyBtn">Copy</button>
-      </div>
-      <div id="previewBody" class="preview-body muted">Select a converted item to preview.</div>
-    </div>
-  </section>
-
-  <footer class="footer">Made by CAIO · <a href="https://wearecaio.com" target="_blank" rel="noopener">wearecaio.com</a></footer>
-
+  <!-- vendored, offline (no CDN) -->
   <script src="/vendor/marked.min.js"></script>
   <script src="/vendor/purify.min.js"></script>
   <script src="/vendor/jszip.min.js"></script>
+  <script src="/icons.js"></script>
   <script src="/lib.js"></script>
   <script src="/app.js"></script>
 </body>

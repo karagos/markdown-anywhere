@@ -1,6 +1,22 @@
 from unittest.mock import patch, MagicMock
-from server.ocr import probe_local_llm, llm_kwargs, LocalLLM
+from server.ocr import probe_local_llm, llm_kwargs, LocalLLM, list_models
 from server import config
+
+
+def test_list_models_success():
+    payload = MagicMock(status_code=200)
+    payload.json.return_value = {"data": [{"id": "m1"}, {"id": "m2"}]}
+    with patch("server.ocr.httpx.get", return_value=payload):
+        res = list_models("http://x/v1")
+    assert res["available"] is True
+    assert res["models"] == ["m1", "m2"]
+
+
+def test_list_models_unreachable():
+    with patch("server.ocr.httpx.get", side_effect=RuntimeError("no")):
+        res = list_models("http://x/v1")
+    assert res["available"] is False
+    assert res["models"] == []
 
 
 def test_llm_kwargs_disabled_returns_none():

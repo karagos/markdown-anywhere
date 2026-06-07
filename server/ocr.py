@@ -29,3 +29,16 @@ def llm_kwargs(ocr_enabled: bool, endpoint: str | None, model: str) -> dict | No
     if ocr_enabled and endpoint:
         return {"endpoint": endpoint, "model": model}
     return None
+
+
+def list_models(endpoint: str, timeout: float = 2.0) -> dict:
+    """List model ids served by a local OpenAI-compatible endpoint."""
+    try:
+        resp = httpx.get(f"{endpoint}/models", timeout=timeout)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = [m.get("id") for m in data.get("data", []) if m.get("id")]
+            return {"available": True, "models": models}
+        return {"available": False, "models": [], "error": f"HTTP {resp.status_code}"}
+    except Exception as exc:
+        return {"available": False, "models": [], "error": str(exc)}

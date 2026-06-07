@@ -2,17 +2,19 @@
 import os
 import tempfile
 
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Body
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from server import config
-from server.ocr import probe_local_llm, llm_kwargs
+from server import config, storage, settings_store
+from server.ocr import probe_local_llm, llm_kwargs, list_models
 from server.converter import (
     make_converter, convert_source, expand_zip, is_supported,
     ConversionResult, mdfilename,
 )
-from server.pdf_ocr import should_ocr_pdf, build_llm_client, ocr_pdf
+from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf
+from server import pdf_text
 
 app = FastAPI(title="Markitdown Local App")
 
@@ -30,23 +32,33 @@ def _result_to_dict(r: ConversionResult) -> dict:
             "error": r.error, "source_type": r.source_type}
 
 
-def _maybe_pdf_fallback(result: ConversionResult, path: str,
-                        display_name: str, ocr: dict | None) -> ConversionResult:
-    """OCR an image-only PDF when possible; otherwise leave a helpful note."""
-    if not should_ocr_pdf(result.source_type, result.markdown, ocr):
-        if (result.source_type == ".pdf" and result.status == "done"
-                and not result.markdown.strip()):
-            result.markdown = NO_TEXT_NOTE
-        return result
+def _ai_pdf(path: str, name: str, ocr: dict, label: str) -> ConversionResult:
     try:
         client = build_llm_client(ocr["endpoint"])
         text = ocr_pdf(path, client, ocr["model"])
-        return ConversionResult(name=mdfilename(display_name), markdown=text,
-                                status="done", source_type=".pdf")
+        return ConversionResult(name=name, markdown=text, status="done", source_type=".pdf")
     except Exception as exc:
-        return ConversionResult(name=mdfilename(display_name), markdown="",
-                                status="error", error=f"PDF OCR failed: {exc}",
-                                source_type=".pdf")
+        return ConversionResult(name=name, markdown="", status="error",
+                                error=f"{label} failed: {exc}", source_type=".pdf")
+
+
+def convert_pdf(path: str, display_name: str, ocr: dict | None,
+                mode: str = "fast") -> ConversionResult:
+    """PDF → Markdown. mode 'ai' uses the vision model; 'fast' uses the structured
+    extractor (with an OCR fallback for image-only PDFs)."""
+    name = mdfilename(display_name)
+    if use_ai_pdf(mode, ocr):
+        return _ai_pdf(path, name, ocr, "AI PDF conversion")
+    try:
+        md = pdf_text.extract_pdf_markdown(path)
+    except Exception:
+        md = ""
+    if md.strip():
+        return ConversionResult(name=name, markdown=md, status="done", source_type=".pdf")
+    # No text layer → scanned/image-only PDF.
+    if ocr:
+        return _ai_pdf(path, name, ocr, "PDF OCR")
+    return ConversionResult(name=name, markdown=NO_TEXT_NOTE, status="done", source_type=".pdf")
 
 
 @app.get("/api/health")
@@ -65,7 +77,8 @@ def ocr_status():
 async def convert(file: UploadFile = File(...),
                   ocr_enabled: bool = Form(False),
                   endpoint: str | None = Form(None),
-                  model: str = Form(config.DEFAULT_VISION_MODEL)):
+                  model: str = Form(config.DEFAULT_VISION_MODEL),
+                  pdf_mode: str = Form("fast")):
     ocr = llm_kwargs(ocr_enabled, endpoint, model)
     converter = make_converter(ocr)
     results: list[ConversionResult] = []
@@ -78,15 +91,18 @@ async def convert(file: UploadFile = File(...),
 
         if suffix.lower() == ".zip":
             for entry_name, entry_path in expand_zip(src_path, os.path.join(tmp, "z")):
-                r = convert_source(entry_path, converter, display_name=entry_name)
-                results.append(_maybe_pdf_fallback(r, entry_path, entry_name, ocr))
+                if entry_name.lower().endswith(".pdf"):
+                    results.append(convert_pdf(entry_path, entry_name, ocr, pdf_mode))
+                else:
+                    results.append(convert_source(entry_path, converter, display_name=entry_name))
+        elif suffix.lower() == ".pdf":
+            results.append(convert_pdf(src_path, file.filename, ocr, pdf_mode))
         elif not is_supported(file.filename):
             results.append(ConversionResult(name=file.filename, markdown="",
                                             status="unsupported",
                                             source_type=os.path.splitext(file.filename)[1]))
         else:
-            r = convert_source(src_path, converter, display_name=file.filename)
-            results.append(_maybe_pdf_fallback(r, src_path, file.filename, ocr))
+            results.append(convert_source(src_path, converter, display_name=file.filename))
 
     return {"results": [_result_to_dict(r) for r in results]}
 
@@ -104,6 +120,51 @@ def convert_url(body: UrlBody):
     converter = make_converter(ocr)
     r = convert_source(body.url, converter, is_url=True)
     return {"results": [_result_to_dict(r)]}
+
+
+@app.get("/api/models")
+def models(endpoint: str):
+    return list_models(endpoint)
+
+
+class SaveBody(BaseModel):
+    folder: str
+    files: list[dict]
+
+
+@app.post("/api/save")
+def save(body: SaveBody):
+    try:
+        return storage.save_markdown(body.folder, body.files)
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+
+class FolderBody(BaseModel):
+    folder: str
+
+
+@app.post("/api/open-folder")
+def open_folder(body: FolderBody):
+    try:
+        return storage.open_folder(body.folder)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@app.post("/api/pick-folder")
+def pick_folder():
+    return storage.pick_folder()
+
+
+@app.get("/api/settings")
+def get_settings():
+    return settings_store.load_settings()
+
+
+@app.post("/api/settings")
+def post_settings(body: dict = Body(...)):
+    return {"ok": True, "settings": settings_store.save_settings(body)}
 
 
 # Static UI mounted last so /api/* wins.

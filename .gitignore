@@ -26,3 +26,9 @@ _smoke/
 _gen_samples.py
 _diag_pdf.py
 Markitdown-Local-App.zip
+_incoming/
+
+# Local preview tooling
+.claude/
+_drive.py
+_diag*.py
