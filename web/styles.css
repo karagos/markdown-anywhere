@@ -1,0 +1,42 @@
+:root {
+  --accent: #D97706;        /* CAIO warm accent */
+  --ink: #1f2328;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --bg: #fafafa;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 -apple-system, Segoe UI, Roboto, sans-serif;
+       color: var(--ink); background: var(--bg); }
+.topbar { display: flex; align-items: center; justify-content: space-between;
+          padding: 14px 22px; border-bottom: 1px solid var(--line); background: #fff; }
+.topbar h1 { font-size: 18px; margin: 0; }
+.dropzone { margin: 22px; padding: 28px; text-align: center; background: #fff;
+            border: 2px dashed var(--line); border-radius: 12px; }
+.dropzone.drag { border-color: var(--accent); background: #fff7ed; }
+.urlrow { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+.urlrow input { flex: 1; max-width: 460px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.link { color: var(--accent); cursor: pointer; text-decoration: underline; }
+.panel { margin: 0 22px 16px; padding: 14px 18px; background: #fff;
+         border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 10px; }
+.workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 22px 22px; }
+.queue, .preview { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.queue-actions, .preview-actions { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+#queueList { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.qitem { display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+         border: 1px solid var(--line); border-radius: 8px; }
+.qitem .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f3f4f6; color: var(--muted); }
+.status.done { background: #ecfdf5; color: #047857; }
+.status.error, .status.unsupported { background: #fef2f2; color: #b91c1c; }
+.status.converting { background: #fffbeb; color: #b45309; }
+button { font: inherit; padding: 7px 12px; border: 1px solid var(--accent);
+         background: var(--accent); color: #fff; border-radius: 8px; cursor: pointer; }
+button.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+.preview-body { min-height: 240px; max-height: 60vh; overflow: auto; padding: 6px 2px; }
+.preview-body pre { white-space: pre-wrap; word-break: break-word; }
+.muted { color: var(--muted); }
+.hidden { display: none; }
+.footer { text-align: center; color: var(--muted); padding: 18px; font-size: 13px; }
+.footer a { color: var(--accent); }
+@media (max-width: 820px) { .workspace { grid-template-columns: 1fr; } }
