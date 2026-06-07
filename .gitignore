@@ -24,3 +24,4 @@ install.log
 server.log
 _smoke/
 _gen_samples.py
+_diag_pdf.py

@@ -15,6 +15,13 @@ OCR_PROMPT = (
     "describing the image. If there is no text, just describe the image."
 )
 
+# Used when OCR-ing the rendered pages of a scanned/image-only PDF.
+PDF_OCR_PROMPT = (
+    "Transcribe ALL text on this document page into clean Markdown. "
+    "Preserve headings, lists, and tables. Do not add commentary, descriptions, "
+    "or notes about the layout. Output only the Markdown content of the page."
+)
+
 MAX_UPLOAD_MB = 100
 
 # Extensions MarkItDown handles that we surface in the UI / expand from zips.

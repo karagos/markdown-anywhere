@@ -10,17 +10,43 @@ from server import config
 from server.ocr import probe_local_llm, llm_kwargs
 from server.converter import (
     make_converter, convert_source, expand_zip, is_supported,
-    ConversionResult,
+    ConversionResult, mdfilename,
 )
+from server.pdf_ocr import should_ocr_pdf, build_llm_client, ocr_pdf
 
 app = FastAPI(title="Markitdown Local App")
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
 
+NO_TEXT_NOTE = (
+    "> ⚠️ No text layer found — this looks like a scanned or image-only PDF.\n>\n"
+    "> Enable **image OCR** in Settings (with Ollama or LM Studio running) and "
+    "re-drop the file to extract its text."
+)
+
 
 def _result_to_dict(r: ConversionResult) -> dict:
     return {"name": r.name, "markdown": r.markdown, "status": r.status,
             "error": r.error, "source_type": r.source_type}
+
+
+def _maybe_pdf_fallback(result: ConversionResult, path: str,
+                        display_name: str, ocr: dict | None) -> ConversionResult:
+    """OCR an image-only PDF when possible; otherwise leave a helpful note."""
+    if not should_ocr_pdf(result.source_type, result.markdown, ocr):
+        if (result.source_type == ".pdf" and result.status == "done"
+                and not result.markdown.strip()):
+            result.markdown = NO_TEXT_NOTE
+        return result
+    try:
+        client = build_llm_client(ocr["endpoint"])
+        text = ocr_pdf(path, client, ocr["model"])
+        return ConversionResult(name=mdfilename(display_name), markdown=text,
+                                status="done", source_type=".pdf")
+    except Exception as exc:
+        return ConversionResult(name=mdfilename(display_name), markdown="",
+                                status="error", error=f"PDF OCR failed: {exc}",
+                                source_type=".pdf")
 
 
 @app.get("/api/health")
@@ -52,15 +78,15 @@ async def convert(file: UploadFile = File(...),
 
         if suffix.lower() == ".zip":
             for entry_name, entry_path in expand_zip(src_path, os.path.join(tmp, "z")):
-                results.append(convert_source(entry_path, converter,
-                                              display_name=entry_name))
+                r = convert_source(entry_path, converter, display_name=entry_name)
+                results.append(_maybe_pdf_fallback(r, entry_path, entry_name, ocr))
         elif not is_supported(file.filename):
             results.append(ConversionResult(name=file.filename, markdown="",
                                             status="unsupported",
                                             source_type=os.path.splitext(file.filename)[1]))
         else:
-            results.append(convert_source(src_path, converter,
-                                          display_name=file.filename))
+            r = convert_source(src_path, converter, display_name=file.filename)
+            results.append(_maybe_pdf_fallback(r, src_path, file.filename, ocr))
 
     return {"results": [_result_to_dict(r) for r in results]}
 
