@@ -715,6 +715,12 @@
 
   // ---------- boot ----------
   async function boot() {
+    // optional deep-link: ?view=convert|history|settings|about & ?theme=light|dark
+    const qp = new URLSearchParams(location.search);
+    const qpView = qp.get("view");
+    if (["convert", "history", "settings", "about"].includes(qpView)) state.view = qpView;
+    const qpTheme = qp.get("theme");
+    if (qpTheme === "light" || qpTheme === "dark") state.theme = qpTheme;
     document.documentElement.dataset.theme = state.theme;
     await loadSettings();
     // reflect detected OCR engine in the sidebar without forcing OCR on

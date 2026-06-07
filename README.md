@@ -16,6 +16,10 @@ Built by [CAIO Group](https://wearecaio.com).
 ![Runs locally](https://img.shields.io/badge/privacy-100%25%20local-success.svg)
 ![No build step](https://img.shields.io/badge/frontend-vanilla%20JS-orange.svg)
 
+<br/>
+
+![Markdown Anywhere — Convert screen](docs/screenshot-convert-light.png)
+
 </div>
 
 ---
@@ -53,6 +57,16 @@ your computer**.
 - **History** of the session and a **Settings** panel that persists between launches.
 - **Light & dark themes.**
 - **Single local app, no accounts, no telemetry, no uploads.**
+
+---
+
+## Screenshots
+
+| Convert — light | Convert — dark |
+|:---:|:---:|
+| ![Convert, light theme](docs/screenshot-convert-light.png) | ![Convert, dark theme](docs/screenshot-convert-dark.png) |
+
+![About — why Markdown saves tokens](docs/screenshot-about.png)
 
 ---
 
