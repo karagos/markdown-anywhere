@@ -18,3 +18,9 @@ Thumbs.db
 # Local env / secrets
 .env
 .env.local
+
+# Runtime logs and smoke-test scratch
+install.log
+server.log
+_smoke/
+_gen_samples.py
