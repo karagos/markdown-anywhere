@@ -2,12 +2,13 @@
 import os
 import tempfile
 
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Body
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from server import config
-from server.ocr import probe_local_llm, llm_kwargs
+from server import config, storage, settings_store
+from server.ocr import probe_local_llm, llm_kwargs, list_models
 from server.converter import (
     make_converter, convert_source, expand_zip, is_supported,
     ConversionResult, mdfilename,
@@ -104,6 +105,46 @@ def convert_url(body: UrlBody):
     converter = make_converter(ocr)
     r = convert_source(body.url, converter, is_url=True)
     return {"results": [_result_to_dict(r)]}
+
+
+@app.get("/api/models")
+def models(endpoint: str):
+    return list_models(endpoint)
+
+
+class SaveBody(BaseModel):
+    folder: str
+    files: list[dict]
+
+
+@app.post("/api/save")
+def save(body: SaveBody):
+    try:
+        return storage.save_markdown(body.folder, body.files)
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+
+class FolderBody(BaseModel):
+    folder: str
+
+
+@app.post("/api/open-folder")
+def open_folder(body: FolderBody):
+    try:
+        return storage.open_folder(body.folder)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@app.get("/api/settings")
+def get_settings():
+    return settings_store.load_settings()
+
+
+@app.post("/api/settings")
+def post_settings(body: dict = Body(...)):
+    return {"ok": True, "settings": settings_store.save_settings(body)}
 
 
 # Static UI mounted last so /api/* wins.
