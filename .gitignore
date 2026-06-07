@@ -30,3 +30,5 @@ _incoming/
 
 # Local preview tooling
 .claude/
+_drive.py
+_diag*.py
