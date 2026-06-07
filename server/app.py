@@ -16,6 +16,7 @@ from server.converter import (
 from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf
 from server import pdf_text
 from server.tokens import count_tokens
+from server import youtube
 
 app = FastAPI(title="Markitdown Local App")
 
@@ -119,6 +120,19 @@ class UrlBody(BaseModel):
 
 @app.post("/api/convert-url")
 def convert_url(body: UrlBody):
+    if youtube.is_youtube_url(body.url):
+        vid = youtube.video_id(body.url)
+        try:
+            md = youtube.fetch_youtube_markdown(body.url)
+            r = ConversionResult(name=f"youtube-{vid}.md", markdown=md,
+                                 status="done", source_type="url")
+        except Exception as exc:
+            r = ConversionResult(
+                name=body.url, markdown="", status="error",
+                error=("Couldn't fetch a transcript for this video — it may have "
+                       f"captions disabled, or YouTube is blocking access. ({exc})"),
+                source_type="url")
+        return {"results": [_result_to_dict(r)]}
     ocr = llm_kwargs(body.ocr_enabled, body.endpoint, body.model)
     converter = make_converter(ocr)
     r = convert_source(body.url, converter, is_url=True)

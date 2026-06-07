@@ -1,4 +1,9 @@
-markitdown[all]
+# MarkItDown with the format extras we use. We deliberately avoid the `[all]`
+# extra because it pins youtube-transcript-api~=1.0.0 (a version with a broken
+# transcript fetch); we pin a fixed version below instead. Azure cloud extras
+# (az-doc-intel, az-content-understanding) are omitted — this app is local-only.
+markitdown[pdf,docx,pptx,xls,xlsx,outlook,audio-transcription,youtube-transcription]
+youtube-transcript-api>=1.2.4
 fastapi
 uvicorn[standard]
 python-multipart
