@@ -297,7 +297,7 @@
           h("button", { class: state.theme === "dark" ? "on" : "", onClick: () => setTheme("dark") }, [ic("moon"), h("span", { text: "Dark" })]),
         ]),
         h("div", { class: "made-by" }, ["Made by ", h("strong", { text: "CAIO Group" }),
-          h("a", { href: "#", onClick: (e) => e.preventDefault() }, ["wearecaio.com ", ic("arrowUR")])]),
+          h("a", { href: "https://wearecaio.com", target: "_blank", rel: "noopener" }, ["wearecaio.com ", ic("arrowUR")])]),
       ]),
     ]);
   }
@@ -665,7 +665,7 @@
       h("div", { class: "about-foot" }, [
         h("span", { class: "mono", text: "Version 2.0.0" }), h("span", { class: "sep" }), "Powered by Microsoft MarkItDown",
         h("span", { class: "sep" }), h("span", {}, ["Made by ", h("strong", { text: "CAIO Group" })]),
-        h("a", { href: "#", onClick: (e) => e.preventDefault(), text: "wearecaio.com →" }),
+        h("a", { href: "https://wearecaio.com", target: "_blank", rel: "noopener", text: "wearecaio.com →" }),
       ]),
     ]);
   }
@@ -704,7 +704,7 @@
             h("div", { class: "content" }, [viewNode()]),
             h("div", { class: "footer" }, [
               h("span", {}, ["Powered by ", h("strong", { text: "Microsoft MarkItDown" }), " · runs entirely on your machine"]),
-              h("span", { style: { marginLeft: "auto" } }, ["Made by ", h("strong", { text: "CAIO Group" }), " ", h("span", { class: "reddot", text: "·" }), " ", h("a", { href: "#", onClick: (e) => e.preventDefault(), text: "wearecaio.com" })]),
+              h("span", { style: { marginLeft: "auto" } }, ["Made by ", h("strong", { text: "CAIO Group" }), " ", h("span", { class: "reddot", text: "·" }), " ", h("a", { href: "https://wearecaio.com", target: "_blank", rel: "noopener", text: "wearecaio.com" })]),
             ]),
           ]),
         ]),
