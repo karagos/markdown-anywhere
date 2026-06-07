@@ -1,8 +1,11 @@
-# Markitdown Local App — by CAIO
+# Markitdown by CAIO Group
 
 Convert PDF, Word, Excel, PowerPoint, CSV, HTML, images, ZIPs, and **web links**
-into clean Markdown — locally and privately — to save tokens when working with AI.
+into clean, token-efficient Markdown — locally and privately — so you can paste
+high-quality context into AI assistants instead of uploading raw files.
 Powered by Microsoft [MarkItDown](https://github.com/microsoft/markitdown).
+
+> *Anything to Markdown — runs entirely on your machine. Nothing is uploaded.*
 
 ## Requirements
 - **Python 3.10 or newer** (one-time). Get it at https://www.python.org/downloads/
@@ -12,40 +15,48 @@ Powered by Microsoft [MarkItDown](https://github.com/microsoft/markitdown).
 - **Mac:** double-click `start.command`.
 - **Windows:** double-click `start.bat`.
 
-The first launch finds your Python, sets everything up automatically (a few minutes),
-and opens your browser at **http://127.0.0.1:8400**. Later launches are instant.
-To stop the app, close the Terminal/Command window it opened.
+The first launch finds your Python, sets everything up automatically (a few
+minutes), and opens your browser at **http://127.0.0.1:8400**. Later launches are
+instant. Close the Terminal/Command window it opens to stop the app.
 
-## Use
-Drag files onto the page (or paste a web link). Each item converts to Markdown — you can:
-- **Preview** it (toggle Raw ⇄ Rendered) and **Copy** to clipboard,
-- **Download** a single `.md`,
-- tick several rows and **Merge selected → one .md**,
-- **Download all** results as a `.zip`.
+## The app (four sections)
+- **Convert** — drag files or a folder, or paste a web link. Each item converts to
+  Markdown in a queue: preview (rendered ⇄ raw), copy, download `.md`, rename,
+  reorder, **merge several into one document**, **download all as a zip**, or
+  **save to a folder**. A running counter estimates the tokens you save.
+- **History** — every conversion this session (cleared on restart).
+- **Settings** — output folder + auto-save, OCR, PDF mode, and theme.
+- **About** — why Markdown saves tokens.
 
-Drop a **`.zip`** and every supported file inside it is converted into its own result.
+Light and dark themes (toggle in the sidebar) are remembered between launches.
+
+## PDF conversion modes (Settings → PDF conversion)
+- **Fast — structured** (default): a built-in extractor that reconstructs headings
+  by font size and reads multi-column pages in the right order. Instant, offline.
+- **AI — vision model**: renders each page and sends it to your local vision model
+  for best layout/tables/reading order. Slower (one pass per page) and requires a
+  connected model (see OCR below).
 
 ## Image & scanned-PDF OCR (optional, fully local)
-Plain images and **scanned / image-only PDFs** (no text layer) need a local vision
-model to read their text. Both Ollama and LM Studio work:
-
+Plain images and scanned/image-only PDFs need a local vision model. Both Ollama and
+LM Studio work:
 1. **Ollama:** install from https://ollama.com, then `ollama pull qwen2.5vl:7b`
    (lighter machines: `granite3.2-vision:2b`). Start it so the browser may call it:
    `OLLAMA_ORIGINS=* ollama serve`.
-   **LM Studio:** load a vision model (e.g. a Gemma or Qwen-VL model) and start its local server.
-2. In the app: open **Settings**, tick **Enable image OCR**, and confirm the status line
-   shows your engine was detected. Set the **model name** to match what you loaded.
-3. Drop an image or a scanned PDF — each page is transcribed to Markdown.
-
-With OCR off, a scanned PDF shows a clear "no text layer — enable OCR" note instead of
-an empty file.
+   **LM Studio:** load a vision model (e.g. a Gemma or Qwen-VL model) and start its
+   local server.
+2. In the app: **Settings → Enable OCR**, click **Test connection** to load the
+   model list, and pick your model.
+3. Drop an image or scanned PDF (or switch PDF mode to AI) — each page is transcribed.
 
 ## Privacy
-Files and OCR stay **100% on your machine** — nothing is uploaded. The only network use
-is when you paste a **web link** (that page/YouTube content is fetched from the internet).
+Files and OCR stay **100% on your machine** — nothing is uploaded. The only network
+use is when you paste a **web link** (that page/YouTube content is fetched from the
+internet).
 
 ## For developers
+- Stack: Python/FastAPI server (`server/`) + vanilla HTML/CSS/JS UI (`web/`), no build step.
 - Run tests on the machine (inside the venv):
   - Python: `./venv/bin/python -m pytest -q`
   - Frontend logic (Node 18+): `node --test 'tests/*.test.js'`
-- Layout: `server/` (FastAPI + conversion logic), `web/` (static UI), `tests/`, `specs/`.
+- Vendored, offline assets: `marked`, `DOMPurify`, `JSZip`, and the Geist fonts.
