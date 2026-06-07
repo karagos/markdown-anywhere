@@ -1,0 +1,20 @@
+# Dependencies / runtimes (never committed; rebuilt per-machine)
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Build artifacts
+dist/
+build/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local env / secrets
+.env
+.env.local
