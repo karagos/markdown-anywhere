@@ -615,7 +615,15 @@
           h("p", { text: "Optional. YouTube often blocks anonymous transcript requests; using your own cookies makes them look logged-in." })]),
         h("div", { class: "setcard__body" }, [
           h("div", { class: "field" }, [
-            h("label", { text: "Cookies file (cookies.txt)" }),
+            h("label", { text: "Paste cookies" }),
+            h("textarea", { class: "input", rows: 4,
+              placeholder: "Paste your cookies.txt content, or a “name=value; name2=value2” cookie string",
+              style: { minHeight: "92px", resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "12px" },
+              value: s.youtubeCookiesText || "",
+              onChange: (e) => setSetting({ youtubeCookiesText: e.target.value }) }),
+          ]),
+          h("div", { class: "field" }, [
+            h("label", { text: "…or a cookies file" }),
             h("div", { class: "row" }, [
               h("input", { class: "input", type: "text", placeholder: "Path to a cookies.txt (optional)", value: s.youtubeCookies || "",
                 onChange: (e) => setSetting({ youtubeCookies: e.target.value }) }),
@@ -625,11 +633,11 @@
                   catch (e) { toast("info", "Picker unavailable", "Type the path instead."); }
                 } }, [ic("folder"), " Browse…"]),
             ]),
-            h("div", { class: "field__hint" }, [
-              "Export with the free “Get cookies.txt LOCALLY” browser extension while on youtube.com. ",
-              h("b", { text: "This file contains your logged-in session — keep it private." }),
-              " It stays on your machine and is used only for YouTube requests. Re-export if it stops working.",
-            ]),
+          ]),
+          h("div", { class: "field__hint" }, [
+            "Export with the free “Get cookies.txt LOCALLY” browser extension on youtube.com, then paste it above (or pick the file). ",
+            h("b", { text: "Cookies are your logged-in session — keep them private." }),
+            " They stay on your machine (pasted text is saved in your local settings) and are used only for YouTube. Pasted text takes priority; re-paste if it stops working.",
           ]),
         ]),
       ]),

@@ -57,17 +57,60 @@ def cookie_session(cookie_path: str):
     return session
 
 
-def fetch_youtube_markdown(url: str, cookie_path: str | None = None) -> str:
+def cookies_from_text(text: str):
+    """Parse pasted cookie content into a requests.Session.
+
+    Accepts either the Netscape cookies.txt format (tab-separated lines) or a
+    browser 'Cookie:' header string ('name=value; name2=value2'). Returns None
+    for empty input; raises if nothing parseable is found.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+    import requests
+    session = requests.Session()
+    lines = [ln for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+    added = 0
+    if any("\t" in ln for ln in lines):  # Netscape cookies.txt
+        for ln in lines:
+            parts = ln.split("\t")
+            if len(parts) >= 7:
+                domain, _flag, path, _secure, _expiry, name, value = parts[:7]
+                session.cookies.set(name, value, domain=domain or ".youtube.com", path=path or "/")
+                added += 1
+    else:  # 'name=value; name2=value2' header style
+        for pair in text.replace("\n", ";").split(";"):
+            if "=" in pair:
+                name, value = pair.split("=", 1)
+                if name.strip():
+                    session.cookies.set(name.strip(), value.strip(), domain=".youtube.com", path="/")
+                    added += 1
+    if not added:
+        raise ValueError("No cookies found in the pasted content.")
+    return session
+
+
+def build_session(cookie_path: str | None = None, cookie_text: str | None = None):
+    """Pasted text takes priority over a file path. Returns None if neither set."""
+    if cookie_text and cookie_text.strip():
+        return cookies_from_text(cookie_text)
+    if cookie_path:
+        return cookie_session(cookie_path)
+    return None
+
+
+def fetch_youtube_markdown(url: str, cookie_path: str | None = None,
+                           cookie_text: str | None = None) -> str:
     """Build Markdown (title + transcript) for a YouTube URL. Raises on failure.
 
-    If cookie_path is given, requests are made with those cookies (logged-in
-    session), which sharply reduces YouTube's bot-blocking.
+    With cookies (pasted text or a file), requests use a logged-in session,
+    which sharply reduces YouTube's bot-blocking.
     """
     vid = video_id(url)
     if not vid:
         raise ValueError("Not a recognizable YouTube URL.")
     from youtube_transcript_api import YouTubeTranscriptApi
-    session = cookie_session(cookie_path)
+    session = build_session(cookie_path, cookie_text)
     api = YouTubeTranscriptApi(http_client=session) if session else YouTubeTranscriptApi()
     fetched = api.fetch(vid)  # raises if no transcript available
     segments = [s.text.strip() for s in fetched if getattr(s, "text", "").strip()]

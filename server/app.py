@@ -122,9 +122,12 @@ class UrlBody(BaseModel):
 def convert_url(body: UrlBody):
     if youtube.is_youtube_url(body.url):
         vid = youtube.video_id(body.url)
-        cookie_path = (settings_store.load_settings().get("youtubeCookies") or "").strip() or None
+        _s = settings_store.load_settings()
+        cookie_path = (_s.get("youtubeCookies") or "").strip() or None
+        cookie_text = (_s.get("youtubeCookiesText") or "").strip() or None
         try:
-            md = youtube.fetch_youtube_markdown(body.url, cookie_path=cookie_path)
+            md = youtube.fetch_youtube_markdown(body.url, cookie_path=cookie_path,
+                                                cookie_text=cookie_text)
             r = ConversionResult(name=f"youtube-{vid}.md", markdown=md,
                                  status="done", source_type="url")
         except Exception as exc:
