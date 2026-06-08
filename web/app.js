@@ -39,6 +39,7 @@
       outputFolder: "~/Documents/Markitdown Output", autoSave: false,
       ocrEnabled: false, provider: "LM Studio", endpoint: "http://localhost:1234/v1",
       model: "", models: [], connection: "idle", pdfMode: "fast",
+      historyRetentionDays: 7,
     },
   };
 
@@ -661,6 +662,19 @@
             "Export with the free “Get cookies.txt LOCALLY” browser extension on youtube.com, then paste it above (or pick the file). ",
             h("b", { text: "Cookies are your logged-in session — keep them private." }),
             " They stay on your machine (pasted text is saved in your local settings) and are used only for YouTube. Pasted text takes priority over the file; re-export if it stops working.",
+          ]),
+        ]),
+      ]),
+      h("div", { class: "setcard" }, [
+        h("div", { class: "setcard__head" }, [h("h2", {}, [ic("clock"), " History"]),
+          h("p", { text: "Keep converted files (incl. the Markdown) so you can re-download them later." })]),
+        h("div", { class: "setcard__body" }, [
+          h("div", { class: "field" }, [
+            h("label", { text: "Keep history for" }),
+            h("select", { class: "select", onChange: (e) => setSetting({ historyRetentionDays: parseInt(e.target.value, 10) }) },
+              [["0", "Off (session only)"], ["1", "1 day"], ["3", "3 days"], ["7", "7 days"], ["30", "30 days"]]
+                .map(([v, t]) => h("option", { value: v, text: t, selected: String(s.historyRetentionDays) === v }))),
+            h("div", { class: "field__hint", text: "Off stores nothing on disk (today's behavior). Otherwise converted Markdown is kept locally for the chosen window, then auto-deleted." }),
           ]),
         ]),
       ]),
