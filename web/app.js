@@ -177,7 +177,7 @@
   async function autoSave(item) {
     try {
       await api("/api/save", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folder: state.settings.outputFolder, files: [{ name: L.taggedName(item.name, item.model, state.settings.tagSavedWithModel), markdown: item.markdown }] }) });
+        body: JSON.stringify({ files: [{ name: L.taggedName(item.name, item.model, state.settings.tagSavedWithModel), markdown: item.markdown }] }) });
     } catch (_) {}
   }
 
@@ -203,7 +203,7 @@
     if (!files.length) return;
     try {
       const data = await api("/api/save", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folder: state.settings.outputFolder, files }) });
+        body: JSON.stringify({ files }) });
       if (data.error) toast("info", "Could not save", data.error);
       else toast("ok", `Saved ${data.saved.length} file${data.saved.length !== 1 ? "s" : ""}`, data.folder);
     } catch (e) { toast("info", "Could not save", String(e)); }
@@ -731,7 +731,7 @@
           h("div", { class: "toggle-row" }, [sw(s.autoSave, () => setSetting({ autoSave: !s.autoSave })),
             h("div", { class: "toggle-text" }, [h("b", { text: "Auto-save converted files" }), h("span", { text: "Every converted file is written to the output folder automatically." })])]),
           h("div", { class: "toggle-row" }, [sw(s.tagSavedWithModel, () => setSetting({ tagSavedWithModel: !s.tagSavedWithModel })),
-            h("div", { class: "toggle-text" }, [h("b", { text: "Tag saved files with the model" }), h("span", { text: "Append the vision model to OCR/AI filenames, e.g. report__qwen2.5-vl-7b.md. Files are never overwritten — a new version is saved." })])]),
+            h("div", { class: "toggle-text" }, [h("b", { text: "Tag saved files with the model" }), h("span", { text: "Append the vision model to OCR/AI filenames, e.g. report-qwen2.5-vl-7b.md. Files are never overwritten — a new version is saved." })])]),
         ]),
       ]),
       h("div", { class: "setcard" }, [
