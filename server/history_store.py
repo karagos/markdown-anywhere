@@ -79,6 +79,11 @@ def delete(rid: str, db_path=None) -> None:
         conn.execute("DELETE FROM entries WHERE id=?", [rid])
 
 
+def rename(rid: str, name: str, db_path=None) -> None:
+    with _connect(db_path) as conn:
+        conn.execute("UPDATE entries SET name=? WHERE id=?", [name, rid])
+
+
 def clear(db_path=None) -> None:
     with _connect(db_path) as conn:
         conn.execute("DELETE FROM entries")

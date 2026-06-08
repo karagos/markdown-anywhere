@@ -336,6 +336,14 @@ def history_delete(rid: str):
     return {"ok": True}
 
 
+@app.patch("/api/history/{rid}")
+def history_rename(rid: str, body: dict = Body(...)):
+    name = (body.get("name") or "").strip()
+    if name:
+        history_store.rename(rid, name)
+    return {"ok": True}
+
+
 @app.delete("/api/history")
 def history_clear():
     history_store.clear()
