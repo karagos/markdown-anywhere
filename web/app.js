@@ -667,6 +667,7 @@
             h("div", { class: "row" }, [modelSelect, h("button", { class: "btn btn--ghost", onClick: testConnection }, [ic("plug"), " Test connection"])]),
             h("div", { class: "row", style: { marginTop: "2px" } }, [conn]),
             h("div", { class: "field__hint" }, ["Start LM Studio or run ", h("code", { text: "ollama serve" }), ". Suggested model: ", h("code", { text: "qwen2.5vl:7b" }), "."]),
+            h("div", { class: "field__hint", style: { color: "var(--accent-d)" }, text: "Tip: a vision model without “thinking” (e.g. qwen2.5-vl or a Gemma vision model) is faster and cleaner for OCR than a reasoning model." }),
           ]),
         ]),
       ]),

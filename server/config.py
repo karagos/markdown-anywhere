@@ -10,16 +10,16 @@ LMSTUDIO_URL = "http://localhost:1234/v1"
 DEFAULT_VISION_MODEL = "qwen2.5vl:7b"
 
 OCR_PROMPT = (
-    "Extract ALL readable text from this image verbatim (OCR). "
-    "Output the extracted text first as Markdown. Then add one short line "
-    "describing the image. If there is no text, just describe the image."
+    "Transcribe ALL readable text from this image into clean Markdown. "
+    "Output ONLY the transcribed text — no commentary, no descriptions, no code "
+    "fences, no notes about layout. If there is no text, output nothing."
 )
 
 # Used when OCR-ing the rendered pages of a scanned/image-only PDF.
 PDF_OCR_PROMPT = (
-    "Transcribe ALL text on this document page into clean Markdown. "
-    "Preserve headings, lists, and tables. Do not add commentary, descriptions, "
-    "or notes about the layout. Output only the Markdown content of the page."
+    "Transcribe ALL text on this document page into clean Markdown, preserving "
+    "headings, lists and tables. Output ONLY the Markdown content of the page — "
+    "no commentary, descriptions, code fences, or layout notes."
 )
 
 MAX_UPLOAD_MB = 100

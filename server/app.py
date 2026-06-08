@@ -13,8 +13,10 @@ from server.converter import (
     make_converter, convert_source, expand_zip, is_supported,
     ConversionResult, mdfilename, strip_reasoning,
 )
-from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf
+from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf, _LLM_LOCK
 from server import pdf_text
+
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"}
 from server.tokens import count_tokens
 from server import youtube
 from server import history_store
@@ -155,10 +157,13 @@ async def convert(file: UploadFile = File(...),
                                             status="unsupported",
                                             source_type=os.path.splitext(file.filename)[1]))
         else:
-            r = convert_source(src_path, converter, display_name=file.filename)
             ext = os.path.splitext(file.filename)[1].lower()
-            if ocr and ext in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"}:
+            if ocr and ext in IMAGE_EXTS:
+                with _LLM_LOCK:
+                    r = convert_source(src_path, converter, display_name=file.filename)
                 r.model, r.pages_total, r.pages_ocr = ocr["model"], 1, 1
+            else:
+                r = convert_source(src_path, converter, display_name=file.filename)
             results.append(r)
 
     dur = int((_time.perf_counter() - t0) * 1000)
