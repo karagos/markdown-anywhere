@@ -49,11 +49,16 @@ def render_pdf_pages(path: str, scale: float = 2.0) -> list[bytes]:
 
 
 def ocr_pdf(path: str, client, model: str,
-            prompt: str = config.PDF_OCR_PROMPT, scale: float = 2.0) -> str:
-    """Render every page and OCR it through the vision model; concatenate."""
+            prompt: str = config.PDF_OCR_PROMPT, scale: float = 2.0, on_page=None) -> str:
+    """Render every page and OCR it through the vision model; concatenate.
+
+    on_page(i, total), if given, is called before each page's model request.
+    """
     images = render_pdf_pages(path, scale)
     parts: list[str] = []
     for i, png in enumerate(images, 1):
+        if on_page:
+            on_page(i, len(images))
         b64 = base64.b64encode(png).decode("ascii")
         try:
             with _LLM_LOCK:

@@ -93,34 +93,55 @@
     }
   }
 
+  function attachStreamResults(item, results) {
+    results = results || [];
+    if (!results.length) { item.status = "error"; item.errorShort = "No result"; return; }
+    applyResult(item, results[0]);
+    for (let i = 1; i < results.length; i++) {
+      const r = results[i]; const dd = L.detectType(r.name);
+      const sub = { id: uid(), name: r.name, kind: dd.kind, iconLabel: dd.label, typeLabel: dd.type,
+        size: null, status: r.status, markdown: r.markdown || "", model: r.model || "", selected: false };
+      if (r.status === "done") { sub.chars = r.chars || sub.markdown.length; sub.tokens = r.tokens != null ? r.tokens : L.estTokens(sub.markdown.length); addHistory(sub); }
+      state.queue.splice(state.queue.indexOf(item) + i, 0, sub);
+    }
+    if (item.status === "done") toast("ok", "Conversion complete", "Markdown is ready to preview.");
+  }
+
   async function convertFile(file) {
     const d = L.detectType(file.name);
     const item = { id: uid(), name: file.name, kind: d.kind, iconLabel: d.label, typeLabel: d.type,
       size: file.size, status: "converting", ocr: state.settings.ocrEnabled, markdown: "", selected: false };
     state.queue.unshift(item);
     renderView();
+    const fd = new FormData();
+    fd.append("file", file);
+    const o = ocrFields();
+    fd.append("ocr_enabled", o.ocr_enabled);
+    if (o.endpoint) fd.append("endpoint", o.endpoint);
+    fd.append("model", o.model);
+    fd.append("pdf_mode", state.settings.pdfMode || "fast");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const o = ocrFields();
-      fd.append("ocr_enabled", o.ocr_enabled);
-      if (o.endpoint) fd.append("endpoint", o.endpoint);
-      fd.append("model", o.model);
-      fd.append("pdf_mode", state.settings.pdfMode || "fast");
-      const data = await api("/api/convert", { method: "POST", body: fd });
-      const results = data.results || [];
-      if (!results.length) { item.status = "error"; item.errorShort = "No result"; }
-      else {
-        applyResult(item, results[0]);
-        for (let i = 1; i < results.length; i++) {
-          const r = results[i]; const dd = L.detectType(r.name);
-          const sub = { id: uid(), name: r.name, kind: dd.kind, iconLabel: dd.label, typeLabel: dd.type,
-            size: null, status: r.status, markdown: r.markdown || "", model: r.model || "", selected: false };
-          if (r.status === "done") { sub.chars = r.chars || sub.markdown.length; sub.tokens = r.tokens != null ? r.tokens : L.estTokens(sub.markdown.length); addHistory(sub); }
-          state.queue.splice(state.queue.indexOf(item) + i, 0, sub);
+      const resp = await fetch("/api/convert-stream", { method: "POST", body: fd });
+      if (!resp.body) {  // streaming unsupported → non-streaming fallback
+        const data = await (await fetch("/api/convert", { method: "POST", body: fd })).json();
+        attachStreamResults(item, data.results); renderView(); return;
+      }
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let ev; try { ev = JSON.parse(line); } catch (_) { continue; }
+          if (ev.type === "progress") { item.ocr = true; item.ocrPage = ev.page; item.ocrTotal = ev.total; renderView(); }
+          else if (ev.type === "result") { attachStreamResults(item, ev.results); }
         }
       }
-      if (item.status === "done") toast("ok", "Conversion complete", "Markdown is ready to preview.");
     } catch (e) { item.status = "error"; item.errorShort = String(e); }
     renderView();
   }
@@ -393,7 +414,7 @@
     if (state.dnd && state.dnd.over === realIdx && state.dnd.from !== realIdx) cls.push("is-dragover");
 
     const meta = h("div", { class: "qmeta" });
-    if (item.status === "converting") meta.append(h("span", { style: { color: "var(--warn)", fontWeight: "500" }, text: item.ocr ? "Converting (OCR)…" : "Converting…" }));
+    if (item.status === "converting") meta.append(h("span", { style: { color: "var(--warn)", fontWeight: "500" }, text: (item.ocr && item.ocrTotal) ? `OCR page ${item.ocrPage} / ${item.ocrTotal}` : (item.ocr ? "Converting (OCR)…" : "Converting…") }));
     else if (item.status === "error") meta.append(h("span", { style: { color: "var(--err)" }, text: item.errorShort || "Error" }));
     else if (item.status === "queued") meta.append(h("span", { text: item.typeLabel + " · waiting…" }));
     else meta.append(h("span", { text: item.typeLabel }), h("span", { class: "sep", text: "·" }),
@@ -403,7 +424,8 @@
     const nameRow = h("div", { class: "qname-row" }, [h("span", { class: "qname", text: item.name }), item.ocr && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null]);
     const body = h("div", { class: "qbody", style: { cursor: item.status === "done" ? "pointer" : "default" },
       onClick: () => { if (item.status === "done") { state.previewId = item.id; renderView(); } } }, [nameRow, meta]);
-    if (item.status === "converting") body.append(h("div", { class: "progress indet" }, [h("i")]));
+    if (item.status === "converting") body.append(h("div", { class: "progress" + ((item.ocr && item.ocrTotal) ? "" : " indet") },
+      [h("i", (item.ocr && item.ocrTotal) ? { style: { width: Math.round((item.ocrPage / item.ocrTotal) * 100) + "%" } } : {})]));
     if (item.status === "error" && item._expanded) body.append(h("div", { class: "errdetail", text: item.errorDetail || "" }));
 
     const actions = h("div", { class: "qactions" });
