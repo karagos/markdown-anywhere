@@ -460,14 +460,17 @@
     if (item.status === "converting") meta.append(h("span", { style: { color: "var(--warn)", fontWeight: "500" }, text: (item.ocr && item.ocrTotal) ? `OCR page ${item.ocrPage} / ${item.ocrTotal}` : (item.ocr ? "Converting (OCR)…" : "Converting…") }));
     else if (item.status === "error") meta.append(h("span", { style: { color: "var(--err)" }, text: item.errorShort || "Error" }));
     else if (item.status === "queued") meta.append(h("span", { text: item.typeLabel + " · waiting…" }));
-    else meta.append(h("span", { text: item.typeLabel }), h("span", { class: "sep", text: "·" }),
-      h("span", { class: "mono", text: L.fmtNum(item.chars || 0) + " chars" }), h("span", { class: "sep", text: "·" }),
-      h("span", { class: "mono", text: "~" + L.fmtNum(item.tokens || 0) + " tok" }));
+    else {
+      meta.append(h("span", { text: item.typeLabel }), h("span", { class: "sep", text: "·" }),
+        h("span", { class: "mono", text: L.fmtNum(item.chars || 0) + " chars" }), h("span", { class: "sep", text: "·" }),
+        h("span", { class: "mono", text: "~" + L.fmtNum(item.tokens || 0) + " tok" }));
+      if (item.model) meta.append(h("span", { class: "sep", text: "·" }),
+        h("span", { class: "mono qmeta-model", text: item.model }));
+    }
 
     const nameRow = h("div", { class: "qname-row" }, [
       h("span", { class: "qname", text: item.name }),
-      item.model && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null,
-      item.model && item.status === "done" ? h("span", { class: "model-chip", text: item.model }) : null]);
+      item.model && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null]);
     const body = h("div", { class: "qbody", style: { cursor: item.status === "done" ? "pointer" : "default" },
       onClick: () => { if (item.status === "done") { state.previewId = item.id; renderView(); } } }, [nameRow, meta]);
     if (item.status === "converting") body.append(h("div", { class: "progress" + ((item.ocr && item.ocrTotal) ? "" : " indet") },
