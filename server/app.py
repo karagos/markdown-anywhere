@@ -269,14 +269,19 @@ def models(endpoint: str):
 
 
 class SaveBody(BaseModel):
-    folder: str
-    files: list[dict]
+    folder: str = ""
+    files: list[dict] = []
 
 
 @app.post("/api/save")
 def save(body: SaveBody):
+    # The output folder is server-authoritative: always resolve it from the
+    # persisted setting, never from the client. This prevents a stale/blank
+    # client value from silently routing saves to the default folder.
     try:
-        return storage.save_markdown(body.folder, body.files)
+        folder = (settings_store.load_settings().get("outputFolder") or "").strip() \
+            or settings_store.DEFAULTS["outputFolder"]
+        return storage.save_markdown(folder, body.files)
     except Exception as exc:
         return JSONResponse(status_code=400, content={"error": str(exc)})
 

@@ -14,6 +14,32 @@ def test_convert_pdf_fast_text_sets_metrics(monkeypatch, tmp_path):
     assert r.pdf_mode == "fast"
 
 
+def test_save_route_uses_persisted_folder_ignoring_client(monkeypatch):
+    # client sends a stale default folder; server must ignore it and use the
+    # persisted setting (the real source of truth) instead.
+    monkeypatch.setattr("server.app.settings_store.load_settings",
+                        lambda: {"outputFolder": "/real/out"})
+    captured = {}
+    monkeypatch.setattr("server.app.storage.save_markdown",
+                        lambda folder, files: (captured.update(folder=folder, files=files),
+                                               {"saved": [], "folder": folder})[1])
+    out = A.save(A.SaveBody(folder="~/Documents/Markitdown Output",
+                            files=[{"name": "a.md", "markdown": "x"}]))
+    assert captured["folder"] == "/real/out"
+    assert out["folder"] == "/real/out"
+
+
+def test_save_route_falls_back_to_default_when_setting_blank(monkeypatch):
+    monkeypatch.setattr("server.app.settings_store.load_settings",
+                        lambda: {"outputFolder": ""})
+    captured = {}
+    monkeypatch.setattr("server.app.storage.save_markdown",
+                        lambda folder, files: (captured.update(folder=folder),
+                                               {"saved": [], "folder": folder})[1])
+    A.save(A.SaveBody(files=[]))
+    assert captured["folder"] == A.settings_store.DEFAULTS["outputFolder"]
+
+
 def test_history_rename_route_trims_and_calls_store(monkeypatch):
     calls = []
     monkeypatch.setattr("server.app.history_store.rename",
