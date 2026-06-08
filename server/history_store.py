@@ -111,11 +111,12 @@ def stats(days: int, db_path=None, now=None) -> dict:
         m = r["model"]
         if m:
             b = by.setdefault(m, {"model": m, "conversions": 0, "_ms": 0,
-                                  "tokens": 0, "pages_ocr": 0})
+                                  "tokens": 0, "pages_ocr": 0, "saved_tokens_est": 0})
             b["conversions"] += 1
             b["_ms"] += r["duration_ms"]
             b["tokens"] += r["tokens"]
             b["pages_ocr"] += r["pages_ocr"]
+            b["saved_tokens_est"] += est_saved(r["kind"], r["tokens"])
     by_model = []
     for b in by.values():
         b["avg_ms"] = round(b["_ms"] / b["conversions"]) if b["conversions"] else 0

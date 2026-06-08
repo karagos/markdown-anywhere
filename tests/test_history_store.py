@@ -72,4 +72,6 @@ def test_stats_aggregates_per_model(tmp_path):
     assert m1["conversions"] == 2
     assert m1["avg_ms"] == 2000
     assert m1["ms_per_page"] == round(4000 / 30)
+    # pdf factor 4.0 → saved = tokens*3; m1 has 100+200 tokens → 300+600 = 900
+    assert m1["saved_tokens_est"] == 900
     assert all(m["model"] for m in s["by_model"])
