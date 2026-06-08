@@ -19,7 +19,24 @@ def test_save_markdown_dedupes_names(tmp_path):
         {"name": "x.md", "markdown": "2"},
     ])
     names = sorted(os.path.basename(p) for p in res["saved"])
-    assert names == ["x-1.md", "x.md"]
+    assert names == ["x-2.md", "x.md"]
+
+
+def test_save_markdown_versions_on_disk_collision(tmp_path):
+    (tmp_path / "a.md").write_text("ORIGINAL")
+    res = save_markdown(str(tmp_path), [{"name": "a.md", "markdown": "NEW"}])
+    saved = res["saved"][0]
+    assert saved.endswith("a-2.md")
+    assert (tmp_path / "a.md").read_text() == "ORIGINAL"
+    assert (tmp_path / "a-2.md").read_text() == "NEW"
+
+
+def test_save_markdown_versions_batch_plus_disk(tmp_path):
+    (tmp_path / "a.md").write_text("X")
+    res = save_markdown(str(tmp_path), [
+        {"name": "a.md", "markdown": "1"}, {"name": "a.md", "markdown": "2"}])
+    names = sorted(os.path.basename(p) for p in res["saved"])
+    assert names == ["a-2.md", "a-3.md"]
 
 
 def test_save_markdown_sanitizes_and_adds_extension(tmp_path):
