@@ -34,7 +34,7 @@
     view: "convert",
     theme: (() => { try { return localStorage.getItem("mid-theme") || "light"; } catch (_) { return "light"; } })(),
     queue: [], history: [], previewId: null, previewMode: "rendered",
-    linkValue: "", dnd: null,
+    linkValue: "", dnd: null, historyRows: null, historyStats: null,
     settings: {
       outputFolder: "~/Documents/Markitdown Output", autoSave: false,
       ocrEnabled: false, provider: "LM Studio", endpoint: "http://localhost:1234/v1",
@@ -243,6 +243,16 @@
     renderView();
   }
 
+  async function loadHistory() {
+    try {
+      const [hh, st] = await Promise.all([api("/api/history"), api("/api/history/stats")]);
+      state.historyRows = hh.entries || [];
+      state.historyStats = st || { totals: {}, by_model: [] };
+    } catch (_) { state.historyRows = []; state.historyStats = { totals: {}, by_model: [] }; }
+  }
+
+  function fmtMs(ms) { return ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : Math.round(ms) + "ms"; }
+
   async function checkYtCookies() {
     state.ytCookies = { checking: true }; renderView();
     try { state.ytCookies = await api("/api/youtube-cookies-status"); }
@@ -255,7 +265,7 @@
   // ===================================================================
   const TITLES = {
     convert: ["Convert", "Drop a document, get clean Markdown."],
-    history: ["History", "Conversions from this session."],
+    history: ["History", "Your conversions and per-model performance."],
     settings: ["Settings", "Output, OCR, and about."],
     about: ["About", "What Markitdown does and why."],
   };
@@ -281,7 +291,7 @@
     const nav = [["convert", "Convert", "convert"], ["history", "History", "clock"], ["settings", "Settings", "settings"], ["about", "About", "info"]]
       .map(([id, label, icon]) => {
         const converting = state.queue.filter((q) => q.status === "converting").length;
-        return h("button", { class: "nav__item" + (state.view === id ? " is-active" : ""), onClick: () => { state.view = id; renderAll(); } },
+        return h("button", { class: "nav__item" + (state.view === id ? " is-active" : ""), onClick: async () => { state.view = id; if (id === "history") await loadHistory(); renderAll(); } },
           [ic(icon), h("span", { text: label }), id === "convert" && converting > 0 ? h("span", { class: "nav__badge", text: String(converting) }) : null]);
       });
     return h("aside", { class: "sidebar" }, [
@@ -511,34 +521,81 @@
   }
 
   // ---- history view ----
+  function statCard(label, value, sub) {
+    return h("div", { class: "why-card" }, [
+      h("div", { class: "ss-num", style: { fontSize: "20px" }, text: value }),
+      h("b", { text: label }),
+      sub ? h("p", { text: sub }) : null,
+    ]);
+  }
+
   function historyView() {
-    if (state.history.length === 0) {
+    const rows = state.historyRows || [];
+    const st = state.historyStats || { totals: {}, by_model: [] };
+    const t = st.totals || {};
+    if (!state.settings.historyRetentionDays) {
       return h("div", { class: "view-enter", style: { maxWidth: "760px" } }, [
-        h("div", { class: "table-wrap" }, [h("div", { class: "queue-empty", style: { padding: "56px 20px" } }, [ic("clock"), h("p", { text: "Your conversions this session will appear here." })])]),
+        h("div", { class: "table-wrap" }, [h("div", { class: "queue-empty", style: { padding: "56px 20px" } },
+          [ic("clock"), h("p", {}, ["History is off (session-only). ", h("b", { text: "Turn it on in Settings → History" }), " to keep and analyze your conversions."])])]),
       ]);
     }
-    const rows = state.history.map((hh) => h("tr", {}, [
-      h("td", {}, [h("div", { class: "hist__name" }, [fileTile(hh.kind, hh.kind === "web" ? null : hh.iconLabel), h("span", { text: hh.name })])]),
-      h("td", {}, [h("span", { class: "hist__type", text: hh.typeLabel + (hh.ocr ? " (OCR)" : "") })]),
-      h("td", {}, [h("span", { class: "hist__when", text: hh.when })]),
-      h("td", {}, [h("span", { class: "hist__tok", text: "~" + L.fmtNum(hh.tokens) + " tok" })]),
-      h("td", {}, [statusPill(hh.status)]),
+    const selected = rows.filter((r) => r._sel);
+    const asItems = (rs) => rs.map((r) => ({ name: r.name, markdown: r.markdown, status: "done" }));
+
+    const totalsCards = h("div", { class: "why-grid" }, [
+      statCard("Files", L.fmtNum(t.files || 0)),
+      statCard("Tokens of Markdown", L.fmtNum(t.tokens || 0)),
+      statCard("OCR pages", L.fmtNum(t.ocr_pages || 0)),
+      statCard("Total time", fmtMs(t.duration_ms || 0)),
+      statCard("Est. tokens saved", "≈ " + L.fmtNum(t.saved_tokens_est || 0), "estimate vs raw uploads"),
+    ]);
+
+    const modelTable = (st.by_model || []).length ? h("div", { class: "table-wrap", style: { marginTop: "16px" } }, [
+      h("table", { class: "hist" }, [
+        h("thead", {}, [h("tr", {}, ["Vision model", "Conversions", "Avg time", "Time / page", "Tokens"].map((c) => h("th", { text: c })))]),
+        h("tbody", {}, st.by_model.map((m) => h("tr", {}, [
+          h("td", {}, [h("span", { class: "mono", text: m.model })]),
+          h("td", { text: String(m.conversions) }),
+          h("td", { text: fmtMs(m.avg_ms) }),
+          h("td", { text: m.ms_per_page ? fmtMs(m.ms_per_page) : "—" }),
+          h("td", { text: "~" + L.fmtNum(m.tokens) }),
+        ]))),
+      ])]) : null;
+
+    const fileRows = rows.map((r) => h("tr", {}, [
+      h("td", {}, [h("button", { class: "qcheck" + (r._sel ? " is-on" : ""), "aria-label": "Select", onClick: () => { r._sel = !r._sel; renderView(); } }, [ic("check")])]),
+      h("td", {}, [h("div", { class: "hist__name" }, [fileTile(r.kind, r.kind === "web" ? null : (r.source_type || "").replace(".", "").toUpperCase().slice(0, 4)), h("span", { text: r.name })])]),
+      h("td", {}, [h("span", { class: "mono", text: r.model || "—" })]),
+      h("td", { text: fmtMs(r.duration_ms) }),
+      h("td", { text: "~" + L.fmtNum(r.tokens) }),
+      h("td", { text: r.pages_total ? `${r.pages_ocr}/${r.pages_total}` : "—" }),
       h("td", {}, [h("div", { class: "hist__act" }, [
-        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Preview", onClick: () => onAction(hh.id, "preview") }, [ic("eye")]),
-        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Re-download .md", onClick: () => onAction(hh.id, "download") }, [ic("download")]),
-        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Save to folder", onClick: () => onAction(hh.id, "save") }, [ic("save")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => downloadBlob(new Blob([r.markdown], { type: "text/markdown" }), L.mdFilename(r.name)) }, [ic("download")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Delete", onClick: async () => { await fetch("/api/history/" + r.id, { method: "DELETE" }); await loadHistory(); renderView(); } }, [ic("trash")]),
       ])]),
     ]));
-    return h("div", { class: "view-enter", style: { maxWidth: "920px" } }, [
+
+    const batch = selected.length ? h("div", { class: "batchbar" }, [
+      h("span", { class: "batchbar__count" }, [h("span", { class: "mono", text: String(selected.length) }), " selected"]),
+      h("button", { class: "btn btn--primary btn--sm", onClick: () => { const md = L.mergeSelected(asItems(selected)); if (md) downloadBlob(new Blob([md], { type: "text/markdown" }), "merged.md"); } }, [ic("merge"), " Merge → one .md"]),
+      h("button", { class: "btn btn--ghost btn--sm", onClick: () => downloadZip(asItems(selected)) }, [ic("zip"), " Download .zip"]),
+      h("button", { class: "btn btn--ghost btn--sm", onClick: () => saveToFolder(asItems(selected)) }, [ic("save"), " Save to folder"]),
+    ]) : null;
+
+    return h("div", { class: "about view-enter" }, [
       h("div", { class: "hist-bar" }, [
-        h("span", { class: "eyebrow", text: state.history.length + " conversion" + (state.history.length !== 1 ? "s" : "") + " this session" }),
-        h("button", { class: "btn btn--danger btn--sm", onClick: () => { state.history = []; renderView(); toast("ok", "History cleared", "This session's record was removed."); } }, [ic("trash"), " Clear history"]),
+        h("span", { class: "eyebrow", text: `${rows.length} conversion${rows.length !== 1 ? "s" : ""} kept (last ${state.settings.historyRetentionDays} day${state.settings.historyRetentionDays !== 1 ? "s" : ""})` }),
+        h("button", { class: "btn btn--danger btn--sm", onClick: async () => { await fetch("/api/history", { method: "DELETE" }); await loadHistory(); renderView(); toast("ok", "History cleared", ""); } }, [ic("trash"), " Clear history"]),
       ]),
-      h("div", { class: "table-wrap" }, [h("table", { class: "hist" }, [
-        h("thead", {}, [h("tr", {}, ["Name", "Type", "When", "Size", "Status", ""].map((c) => h("th", { text: c })))]),
-        h("tbody", {}, rows),
-      ])]),
-      h("div", { class: "hist-note" }, [ic("lock"), " History is kept only for this session — it clears when the app restarts. Nothing is stored on disk unless you save it."]),
+      totalsCards,
+      modelTable,
+      batch,
+      rows.length ? h("div", { class: "table-wrap", style: { marginTop: "16px" } }, [
+        h("table", { class: "hist" }, [
+          h("thead", {}, [h("tr", {}, ["", "Name", "Model", "Time", "Tokens", "Pages (OCR/total)", ""].map((c) => h("th", { text: c })))]),
+          h("tbody", {}, fileRows),
+        ])]) : h("div", { class: "table-wrap" }, [h("div", { class: "queue-empty", style: { padding: "48px 20px" } }, [ic("clock"), h("p", { text: "No conversions yet in this window." })])]),
+      h("div", { class: "hist-note" }, [ic("lock"), " Stored locally for the retention window you chose, then auto-deleted. Nothing leaves your machine."]),
     ]);
   }
 
