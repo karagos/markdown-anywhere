@@ -17,6 +17,17 @@ class ConversionResult:
     source_type: str = ""  # extension (".pdf") or "url"
 
 
+_THINK_RE = re.compile(r"<think>.*?</think>|<thinking>.*?</thinking>",
+                       re.IGNORECASE | re.DOTALL)
+
+
+def strip_reasoning(md: str) -> str:
+    """Remove <think>…</think> reasoning blocks a reasoning model might leak into output."""
+    if not md:
+        return md
+    return _THINK_RE.sub("", md).strip()
+
+
 def _ext(name: str) -> str:
     return os.path.splitext(name)[1].lower()
 

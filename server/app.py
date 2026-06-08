@@ -11,7 +11,7 @@ from server import config, storage, settings_store
 from server.ocr import probe_local_llm, llm_kwargs, list_models
 from server.converter import (
     make_converter, convert_source, expand_zip, is_supported,
-    ConversionResult, mdfilename,
+    ConversionResult, mdfilename, strip_reasoning,
 )
 from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf
 from server import pdf_text
@@ -30,10 +30,11 @@ NO_TEXT_NOTE = (
 
 
 def _result_to_dict(r: ConversionResult) -> dict:
-    return {"name": r.name, "markdown": r.markdown, "status": r.status,
+    md = strip_reasoning(r.markdown) if r.status == "done" else r.markdown
+    return {"name": r.name, "markdown": md, "status": r.status,
             "error": r.error, "source_type": r.source_type,
-            "tokens": count_tokens(r.markdown) if r.status == "done" else 0,
-            "chars": len(r.markdown) if r.status == "done" else 0}
+            "tokens": count_tokens(md) if r.status == "done" else 0,
+            "chars": len(md) if r.status == "done" else 0}
 
 
 def _ai_pdf(path: str, name: str, ocr: dict, label: str) -> ConversionResult:

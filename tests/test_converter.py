@@ -2,7 +2,24 @@ import os
 import zipfile
 from server.converter import (
     ConversionResult, convert_source, expand_zip, mdfilename, is_supported,
+    strip_reasoning,
 )
+
+
+def test_strip_reasoning_removes_think_blocks():
+    md = "<think>let me read the image carefully...</think>\n# Title\n\nBody text."
+    out = strip_reasoning(md)
+    assert "think" not in out.lower()
+    assert out.startswith("# Title")
+
+
+def test_strip_reasoning_leaves_normal_markdown():
+    md = "# Report\n\nNo reasoning here."
+    assert strip_reasoning(md) == md
+
+
+def test_strip_reasoning_handles_empty():
+    assert strip_reasoning("") == ""
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 
