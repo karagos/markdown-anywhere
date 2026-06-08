@@ -13,6 +13,7 @@ DEFAULTS = {
     "youtubeCookies": "",      # optional path to a Netscape cookies.txt for YouTube
     "youtubeCookiesText": "",  # optional pasted cookie content (takes priority over the path)
     "historyRetentionDays": 7, # 0 = Off (session-only, nothing persisted)
+    "tagSavedWithModel": True,  # append the model id to saved/downloaded filenames
 }
 
 

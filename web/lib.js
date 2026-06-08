@@ -46,7 +46,18 @@
     return EXT_MAP[ext] || { kind: "gen", label: ext.slice(0, 4).toUpperCase() || "FILE", type: ext.toUpperCase() || "File" };
   }
 
-  const api = { mdFilename, mergeSelected, fmtBytes, fmtNum, estTokens, estSaved, detectType };
+  function modelSuffix(model) {
+    return String(model || "").replace(/[\\/:\s]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  }
+  function taggedName(name, model, tagOn) {
+    const base = String(name).split(/[\\/]/).pop();
+    const dot = base.lastIndexOf(".");
+    const stem = dot > 0 ? base.slice(0, dot) : base;
+    const suf = tagOn && model ? "__" + modelSuffix(model) : "";
+    return stem + suf + ".md";
+  }
+
+  const api = { mdFilename, mergeSelected, fmtBytes, fmtNum, estTokens, estSaved, detectType, modelSuffix, taggedName };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.MDLib = api;
 })(typeof window !== "undefined" ? window : globalThis);

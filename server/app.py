@@ -34,7 +34,7 @@ NO_TEXT_NOTE = (
 def _result_to_dict(r: ConversionResult) -> dict:
     md = strip_reasoning(r.markdown) if r.status == "done" else r.markdown
     return {"name": r.name, "markdown": md, "status": r.status,
-            "error": r.error, "source_type": r.source_type,
+            "error": r.error, "source_type": r.source_type, "model": r.model,
             "tokens": count_tokens(md) if r.status == "done" else 0,
             "chars": len(md) if r.status == "done" else 0}
 

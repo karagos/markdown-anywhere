@@ -39,7 +39,7 @@
       outputFolder: "~/Documents/Markitdown Output", autoSave: false,
       ocrEnabled: false, provider: "LM Studio", endpoint: "http://localhost:1234/v1",
       model: "", models: [], connection: "idle", pdfMode: "fast",
-      historyRetentionDays: 7,
+      historyRetentionDays: 7, tagSavedWithModel: true,
     },
   };
 
@@ -77,6 +77,7 @@
   function applyResult(item, res) {
     item.status = res.status;
     item.markdown = res.markdown || "";
+    item.model = res.model || "";
     item.error = res.error || "";
     if (res.status === "done") {
       item.chars = res.chars || item.markdown.length;
@@ -114,7 +115,7 @@
         for (let i = 1; i < results.length; i++) {
           const r = results[i]; const dd = L.detectType(r.name);
           const sub = { id: uid(), name: r.name, kind: dd.kind, iconLabel: dd.label, typeLabel: dd.type,
-            size: null, status: r.status, markdown: r.markdown || "", selected: false };
+            size: null, status: r.status, markdown: r.markdown || "", model: r.model || "", selected: false };
           if (r.status === "done") { sub.chars = r.chars || sub.markdown.length; sub.tokens = r.tokens != null ? r.tokens : L.estTokens(sub.markdown.length); addHistory(sub); }
           state.queue.splice(state.queue.indexOf(item) + i, 0, sub);
         }
@@ -147,7 +148,7 @@
   async function autoSave(item) {
     try {
       await api("/api/save", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folder: state.settings.outputFolder, files: [{ name: L.mdFilename(item.name), markdown: item.markdown }] }) });
+        body: JSON.stringify({ folder: state.settings.outputFolder, files: [{ name: L.taggedName(item.name, item.model, state.settings.tagSavedWithModel), markdown: item.markdown }] }) });
     } catch (_) {}
   }
 
@@ -159,7 +160,7 @@
     if (action === "remove") { state.queue = state.queue.filter((it) => it.id !== id); if (state.previewId === id) state.previewId = null; renderView(); return; }
     const it = findItem(id); if (!it) return;
     if (action === "copy") { try { await navigator.clipboard.writeText(it.markdown); } catch (_) {} toast("ok", "Copied to clipboard", L.fmtNum(it.markdown.length) + " chars"); }
-    if (action === "download") { downloadBlob(new Blob([it.markdown], { type: "text/markdown" }), L.mdFilename(it.name)); toast("ok", "Saved .md file", L.mdFilename(it.name)); }
+    if (action === "download") { const fn = L.taggedName(it.name, it.model, state.settings.tagSavedWithModel); downloadBlob(new Blob([it.markdown], { type: "text/markdown" }), fn); toast("ok", "Saved .md file", fn); }
     if (action === "save") { await saveToFolder([it]); }
     if (action === "preview") {
       state.view = "convert";
@@ -169,7 +170,7 @@
   }
 
   async function saveToFolder(items) {
-    const files = items.filter((x) => x.status === "done").map((x) => ({ name: L.mdFilename(x.name), markdown: x.markdown }));
+    const files = items.filter((x) => x.status === "done").map((x) => ({ name: L.taggedName(x.name, x.model, state.settings.tagSavedWithModel), markdown: x.markdown }));
     if (!files.length) return;
     try {
       const data = await api("/api/save", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -195,7 +196,7 @@
   async function downloadZip(items) {
     const zip = new JSZip(); const used = {};
     for (const it of items) {
-      let fn = L.mdFilename(it.name);
+      let fn = L.taggedName(it.name, it.model, state.settings.tagSavedWithModel);
       if (used[fn]) fn = fn.replace(/\.md$/, `-${used[fn]++}.md`); else used[fn] = 1;
       zip.file(fn, it.markdown);
     }
@@ -540,7 +541,7 @@
       ]);
     }
     const selected = rows.filter((r) => r._sel);
-    const asItems = (rs) => rs.map((r) => ({ name: r.name, markdown: r.markdown, status: "done" }));
+    const asItems = (rs) => rs.map((r) => ({ name: r.name, markdown: r.markdown, model: r.model, status: "done" }));
 
     const totalsCards = h("div", { class: "why-grid" }, [
       statCard("Files", L.fmtNum(t.files || 0)),
@@ -570,7 +571,7 @@
       h("td", { text: "~" + L.fmtNum(r.tokens) }),
       h("td", { text: r.pages_total ? `${r.pages_ocr}/${r.pages_total}` : "—" }),
       h("td", {}, [h("div", { class: "hist__act" }, [
-        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => downloadBlob(new Blob([r.markdown], { type: "text/markdown" }), L.mdFilename(r.name)) }, [ic("download")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => downloadBlob(new Blob([r.markdown], { type: "text/markdown" }), L.taggedName(r.name, r.model, state.settings.tagSavedWithModel)) }, [ic("download")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Delete", onClick: async () => { await fetch("/api/history/" + r.id, { method: "DELETE" }); await loadHistory(); renderView(); } }, [ic("trash")]),
       ])]),
     ]));
@@ -644,6 +645,8 @@
           ]),
           h("div", { class: "toggle-row" }, [sw(s.autoSave, () => setSetting({ autoSave: !s.autoSave })),
             h("div", { class: "toggle-text" }, [h("b", { text: "Auto-save converted files" }), h("span", { text: "Every converted file is written to the output folder automatically." })])]),
+          h("div", { class: "toggle-row" }, [sw(s.tagSavedWithModel, () => setSetting({ tagSavedWithModel: !s.tagSavedWithModel })),
+            h("div", { class: "toggle-text" }, [h("b", { text: "Tag saved files with the model" }), h("span", { text: "Append the vision model to OCR/AI filenames, e.g. report__qwen2.5-vl-7b.md. Files are never overwritten — a new version is saved." })])]),
         ]),
       ]),
       h("div", { class: "setcard" }, [
