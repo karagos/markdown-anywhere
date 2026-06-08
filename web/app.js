@@ -498,6 +498,7 @@
         h("div", { class: "seg" }, [
           h("button", { class: state.previewMode === "rendered" ? "on" : "", onClick: () => { state.previewMode = "rendered"; renderView(); }, text: "Rendered" }),
           h("button", { class: state.previewMode === "raw" ? "on" : "", onClick: () => { state.previewMode = "raw"; renderView(); }, text: "Raw" }),
+          h("button", { class: state.previewMode === "edit" ? "on" : "", onClick: () => { state.previewMode = "edit"; renderView(); }, text: "Edit" }),
         ]),
         h("span", { class: "saved-badge", title: "Token count of this Markdown (GPT-4o tokenizer)" }, [ic("coins"), " ≈ " + L.fmtNum(item.tokens || 0) + " tokens"]));
     }
@@ -505,6 +506,11 @@
     if (!item) {
       body.append(h("div", { class: "preview__empty" }, [h("div", { class: "dropzone__icon" }, [ic("eye")]),
         h("h3", { text: "Nothing to preview yet" }), h("p", { text: "Select a converted item to see its clean Markdown." })]));
+    } else if (state.previewMode === "edit") {
+      body.append(h("textarea", { class: "input",
+        style: { width: "100%", minHeight: "46vh", resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "13px" },
+        value: item.markdown,
+        onInput: (e) => { item.markdown = e.target.value; item.chars = e.target.value.length; item.tokens = L.estTokens(item.chars); } }));
     } else if (state.previewMode === "rendered") {
       const md = h("div", { class: "md" }); renderMarkdownInto(md, item.markdown); body.append(md);
     } else {
