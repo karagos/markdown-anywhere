@@ -315,6 +315,37 @@
     node.replaceChildren(frag);
   }
 
+  function openMdModal(name, md) {
+    let mode = "rendered";
+    const back = h("div", { class: "md-modal__back", onClick: (e) => { if (e.target === back) back.remove(); } });
+    const body = h("div", { class: "md-modal__body" });
+    const draw = () => {
+      if (mode === "raw") body.replaceChildren(h("pre", { class: "md-modal__raw", text: md || "" }));
+      else renderMarkdownInto(body, md);
+    };
+    const tabs = h("div", { class: "md-modal__tabs" });
+    const renderToggle = () => tabs.replaceChildren(
+      h("button", { class: mode === "rendered" ? "on" : "", onClick: () => { mode = "rendered"; renderToggle(); draw(); }, text: "Rendered" }),
+      h("button", { class: mode === "raw" ? "on" : "", onClick: () => { mode = "raw"; renderToggle(); draw(); }, text: "Raw" }));
+    renderToggle(); draw();
+    const head = h("div", { class: "md-modal__head" }, [
+      h("span", { class: "md-modal__name", text: name }), tabs,
+      h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Close", onClick: () => back.remove() }, [ic("x")])]);
+    back.append(h("div", { class: "md-modal" }, [head, body]));
+    document.body.append(back);
+  }
+
+  async function renameHistory(r) {
+    const next = window.prompt("Rename this entry", r.name);
+    if (next == null) return;
+    const name = next.trim(); if (!name || name === r.name) return;
+    try {
+      await fetch("/api/history/" + r.id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+      await loadHistory(); renderView();
+      toast("ok", "Renamed", name);
+    } catch (e) { toast("info", "Could not rename", String(e)); }
+  }
+
   // ---- sidebar ----
   function renderSidebar() {
     const s = state.settings;
@@ -618,7 +649,10 @@
       h("td", { text: "~" + L.fmtNum(r.tokens) }),
       h("td", { text: r.pages_total ? `${r.pages_ocr}/${r.pages_total}` : "—" }),
       h("td", {}, [h("div", { class: "hist__act" }, [
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Preview", onClick: () => openMdModal(r.name, r.markdown) }, [ic("eye")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Copy Markdown", onClick: async () => { try { await navigator.clipboard.writeText(r.markdown || ""); } catch (_) {} toast("ok", "Copied to clipboard", L.fmtNum((r.markdown || "").length) + " chars"); } }, [ic("copy")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => downloadBlob(new Blob([r.markdown], { type: "text/markdown" }), L.taggedName(r.name, r.model, state.settings.tagSavedWithModel)) }, [ic("download")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Rename", onClick: () => renameHistory(r) }, [ic("pencil")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Delete", onClick: async () => { await fetch("/api/history/" + r.id, { method: "DELETE" }); await loadHistory(); renderView(); } }, [ic("trash")]),
       ])]),
     ]));
