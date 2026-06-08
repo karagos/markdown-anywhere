@@ -411,7 +411,7 @@ body {
 .qname-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .qname { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ocr-badge { flex: none; font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-d); background: var(--accent-wash); border: 1px solid var(--accent-line); border-radius: 4px; padding: 1px 5px; }
-.model-chip { flex: none; font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qmeta-model { min-width: 0; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .md-modal__back { position: fixed; inset: 0; background: rgba(0,0,0,0.42); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 32px; }
 .md-modal { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; width: min(820px, 92vw); max-height: 84vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.28); }
 .md-modal__head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
