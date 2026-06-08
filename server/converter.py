@@ -15,6 +15,10 @@ class ConversionResult:
     status: str          # "done" | "error" | "unsupported"
     error: str = ""
     source_type: str = ""  # extension (".pdf") or "url"
+    model: str = ""        # vision model used (OCR/AI), else ""
+    pdf_mode: str = ""     # "fast" | "ai" | ""
+    pages_total: int = 0
+    pages_ocr: int = 0
 
 
 _THINK_RE = re.compile(r"<think>.*?</think>|<thinking>.*?</thinking>",

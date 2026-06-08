@@ -12,6 +12,7 @@ DEFAULTS = {
     "pdfMode": "fast",        # "fast" (structured) | "ai" (vision model)
     "youtubeCookies": "",      # optional path to a Netscape cookies.txt for YouTube
     "youtubeCookiesText": "",  # optional pasted cookie content (takes priority over the path)
+    "historyRetentionDays": 7, # 0 = Off (session-only, nothing persisted)
 }
 
 
