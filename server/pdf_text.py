@@ -141,6 +141,15 @@ def _blocks_to_md(blocks):
     return "\n\n".join(out)
 
 
+def page_count(path) -> int:
+    import pdfplumber
+    try:
+        with pdfplumber.open(path) as pdf:
+            return len(pdf.pages)
+    except Exception:
+        return 0
+
+
 def extract_pdf_markdown(path):
     """Convert a text-based PDF to structured Markdown. Empty string => no text layer."""
     import pdfplumber

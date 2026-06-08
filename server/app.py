@@ -52,18 +52,25 @@ def convert_pdf(path: str, display_name: str, ocr: dict | None,
     """PDF → Markdown. mode 'ai' uses the vision model; 'fast' uses the structured
     extractor (with an OCR fallback for image-only PDFs)."""
     name = mdfilename(display_name)
+    total = pdf_text.page_count(path)
     if use_ai_pdf(mode, ocr):
-        return _ai_pdf(path, name, ocr, "AI PDF conversion")
+        r = _ai_pdf(path, name, ocr, "AI PDF conversion")
+        r.pdf_mode, r.pages_total, r.pages_ocr, r.model = "ai", total, total, ocr["model"]
+        return r
     try:
         md = pdf_text.extract_pdf_markdown(path)
     except Exception:
         md = ""
     if md.strip():
-        return ConversionResult(name=name, markdown=md, status="done", source_type=".pdf")
+        return ConversionResult(name=name, markdown=md, status="done", source_type=".pdf",
+                                pdf_mode="fast", pages_total=total, pages_ocr=0)
     # No text layer → scanned/image-only PDF.
     if ocr:
-        return _ai_pdf(path, name, ocr, "PDF OCR")
-    return ConversionResult(name=name, markdown=NO_TEXT_NOTE, status="done", source_type=".pdf")
+        r = _ai_pdf(path, name, ocr, "PDF OCR")
+        r.pdf_mode, r.pages_total, r.pages_ocr, r.model = "fast", total, total, ocr["model"]
+        return r
+    return ConversionResult(name=name, markdown=NO_TEXT_NOTE, status="done", source_type=".pdf",
+                            pdf_mode="fast", pages_total=total, pages_ocr=0)
 
 
 @app.get("/api/health")
@@ -107,7 +114,11 @@ async def convert(file: UploadFile = File(...),
                                             status="unsupported",
                                             source_type=os.path.splitext(file.filename)[1]))
         else:
-            results.append(convert_source(src_path, converter, display_name=file.filename))
+            r = convert_source(src_path, converter, display_name=file.filename)
+            ext = os.path.splitext(file.filename)[1].lower()
+            if ocr and ext in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"}:
+                r.model, r.pages_total, r.pages_ocr = ocr["model"], 1, 1
+            results.append(r)
 
     return {"results": [_result_to_dict(r) for r in results]}
 
