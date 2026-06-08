@@ -631,13 +631,14 @@
 
     const modelTable = (st.by_model || []).length ? h("div", { class: "table-wrap", style: { marginTop: "16px" } }, [
       h("table", { class: "hist" }, [
-        h("thead", {}, [h("tr", {}, ["Vision model", "Conversions", "Avg time", "Time / page", "Tokens"].map((c) => h("th", { text: c })))]),
+        h("thead", {}, [h("tr", {}, ["Vision model", "Conversions", "Avg time", "Time / page", "Tokens", "Est. saved"].map((c) => h("th", { text: c })))]),
         h("tbody", {}, st.by_model.map((m) => h("tr", {}, [
           h("td", {}, [h("span", { class: "mono", text: m.model })]),
           h("td", { text: String(m.conversions) }),
           h("td", { text: fmtMs(m.avg_ms) }),
           h("td", { text: m.ms_per_page ? fmtMs(m.ms_per_page) : "—" }),
           h("td", { text: "~" + L.fmtNum(m.tokens) }),
+          h("td", {}, [h("span", { style: { color: "var(--ok)" }, text: "≈ " + L.fmtNum(m.saved_tokens_est || 0) })]),
         ]))),
       ])]) : null;
 
