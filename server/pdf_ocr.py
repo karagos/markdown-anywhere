@@ -6,8 +6,12 @@ to the local vision model (the same OpenAI-compatible path used for images).
 """
 import base64
 import io
+import threading
 
 from server import config
+
+# Serialize vision-model calls so concurrent OCR doesn't overload a local LLM.
+_LLM_LOCK = threading.Lock()
 
 
 def should_ocr_pdf(source_type: str, markdown: str, ocr: dict | None) -> bool:
@@ -45,25 +49,31 @@ def render_pdf_pages(path: str, scale: float = 2.0) -> list[bytes]:
 
 
 def ocr_pdf(path: str, client, model: str,
-            prompt: str = config.PDF_OCR_PROMPT, scale: float = 2.0) -> str:
-    """Render every page and OCR it through the vision model; concatenate."""
+            prompt: str = config.PDF_OCR_PROMPT, scale: float = 2.0, on_page=None) -> str:
+    """Render every page and OCR it through the vision model; concatenate.
+
+    on_page(i, total), if given, is called before each page's model request.
+    """
     images = render_pdf_pages(path, scale)
     parts: list[str] = []
     for i, png in enumerate(images, 1):
+        if on_page:
+            on_page(i, len(images))
         b64 = base64.b64encode(png).decode("ascii")
         try:
-            resp = client.chat.completions.create(
-                model=model,
-                temperature=0,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url",
-                         "image_url": {"url": f"data:image/png;base64,{b64}"}},
-                    ],
-                }],
-            )
+            with _LLM_LOCK:
+                resp = client.chat.completions.create(
+                    model=model,
+                    temperature=0,
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url",
+                             "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                        ],
+                    }],
+                )
             text = (resp.choices[0].message.content or "").strip()
         except Exception as exc:
             text = f"_(OCR failed on page {i}: {exc})_"

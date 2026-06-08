@@ -1,9 +1,12 @@
 """FastAPI server: serves the web UI and the conversion API."""
+import json
 import os
+import queue
 import tempfile
+import threading
 
 from fastapi import FastAPI, UploadFile, File, Form, Body
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -13,8 +16,10 @@ from server.converter import (
     make_converter, convert_source, expand_zip, is_supported,
     ConversionResult, mdfilename, strip_reasoning,
 )
-from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf
+from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf, _LLM_LOCK
 from server import pdf_text
+
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"}
 from server.tokens import count_tokens
 from server import youtube
 from server import history_store
@@ -34,7 +39,7 @@ NO_TEXT_NOTE = (
 def _result_to_dict(r: ConversionResult) -> dict:
     md = strip_reasoning(r.markdown) if r.status == "done" else r.markdown
     return {"name": r.name, "markdown": md, "status": r.status,
-            "error": r.error, "source_type": r.source_type,
+            "error": r.error, "source_type": r.source_type, "model": r.model,
             "tokens": count_tokens(md) if r.status == "done" else 0,
             "chars": len(md) if r.status == "done" else 0}
 
@@ -77,10 +82,10 @@ def _prune_history():
         pass
 
 
-def _ai_pdf(path: str, name: str, ocr: dict, label: str) -> ConversionResult:
+def _ai_pdf(path: str, name: str, ocr: dict, label: str, on_page=None) -> ConversionResult:
     try:
         client = build_llm_client(ocr["endpoint"])
-        text = ocr_pdf(path, client, ocr["model"])
+        text = ocr_pdf(path, client, ocr["model"], on_page=on_page)
         return ConversionResult(name=name, markdown=text, status="done", source_type=".pdf")
     except Exception as exc:
         return ConversionResult(name=name, markdown="", status="error",
@@ -88,13 +93,13 @@ def _ai_pdf(path: str, name: str, ocr: dict, label: str) -> ConversionResult:
 
 
 def convert_pdf(path: str, display_name: str, ocr: dict | None,
-                mode: str = "fast") -> ConversionResult:
+                mode: str = "fast", on_page=None) -> ConversionResult:
     """PDF → Markdown. mode 'ai' uses the vision model; 'fast' uses the structured
     extractor (with an OCR fallback for image-only PDFs)."""
     name = mdfilename(display_name)
     total = pdf_text.page_count(path)
     if use_ai_pdf(mode, ocr):
-        r = _ai_pdf(path, name, ocr, "AI PDF conversion")
+        r = _ai_pdf(path, name, ocr, "AI PDF conversion", on_page=on_page)
         r.pdf_mode, r.pages_total, r.pages_ocr, r.model = "ai", total, total, ocr["model"]
         return r
     try:
@@ -106,7 +111,7 @@ def convert_pdf(path: str, display_name: str, ocr: dict | None,
                                 pdf_mode="fast", pages_total=total, pages_ocr=0)
     # No text layer → scanned/image-only PDF.
     if ocr:
-        r = _ai_pdf(path, name, ocr, "PDF OCR")
+        r = _ai_pdf(path, name, ocr, "PDF OCR", on_page=on_page)
         r.pdf_mode, r.pages_total, r.pages_ocr, r.model = "fast", total, total, ocr["model"]
         return r
     return ConversionResult(name=name, markdown=NO_TEXT_NOTE, status="done", source_type=".pdf",
@@ -125,6 +130,41 @@ def ocr_status():
             "endpoint": llm.endpoint, "default_model": config.DEFAULT_VISION_MODEL}
 
 
+def _convert_upload(data: bytes, filename: str, ocr: dict | None, pdf_mode: str,
+                    on_page=None) -> list[ConversionResult]:
+    """Convert one uploaded file's bytes → list of results. Shared by both endpoints."""
+    converter = make_converter(ocr)
+    results: list[ConversionResult] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        suffix = os.path.splitext(filename)[1]
+        src_path = os.path.join(tmp, f"input{suffix}")
+        with open(src_path, "wb") as fh:
+            fh.write(data)
+
+        if suffix.lower() == ".zip":
+            for entry_name, entry_path in expand_zip(src_path, os.path.join(tmp, "z")):
+                if entry_name.lower().endswith(".pdf"):
+                    results.append(convert_pdf(entry_path, entry_name, ocr, pdf_mode, on_page=on_page))
+                else:
+                    results.append(convert_source(entry_path, converter, display_name=entry_name))
+        elif suffix.lower() == ".pdf":
+            results.append(convert_pdf(src_path, filename, ocr, pdf_mode, on_page=on_page))
+        elif not is_supported(filename):
+            results.append(ConversionResult(name=filename, markdown="",
+                                            status="unsupported",
+                                            source_type=os.path.splitext(filename)[1]))
+        else:
+            ext = os.path.splitext(filename)[1].lower()
+            if ocr and ext in IMAGE_EXTS:
+                with _LLM_LOCK:
+                    r = convert_source(src_path, converter, display_name=filename)
+                r.model, r.pages_total, r.pages_ocr = ocr["model"], 1, 1
+            else:
+                r = convert_source(src_path, converter, display_name=filename)
+            results.append(r)
+    return results
+
+
 @app.post("/api/convert")
 async def convert(file: UploadFile = File(...),
                   ocr_enabled: bool = Form(False),
@@ -132,40 +172,53 @@ async def convert(file: UploadFile = File(...),
                   model: str = Form(config.DEFAULT_VISION_MODEL),
                   pdf_mode: str = Form("fast")):
     ocr = llm_kwargs(ocr_enabled, endpoint, model)
-    converter = make_converter(ocr)
-    results: list[ConversionResult] = []
     t0 = _time.perf_counter()
-
-    with tempfile.TemporaryDirectory() as tmp:
-        suffix = os.path.splitext(file.filename)[1]
-        src_path = os.path.join(tmp, f"input{suffix}")
-        with open(src_path, "wb") as fh:
-            fh.write(await file.read())
-
-        if suffix.lower() == ".zip":
-            for entry_name, entry_path in expand_zip(src_path, os.path.join(tmp, "z")):
-                if entry_name.lower().endswith(".pdf"):
-                    results.append(convert_pdf(entry_path, entry_name, ocr, pdf_mode))
-                else:
-                    results.append(convert_source(entry_path, converter, display_name=entry_name))
-        elif suffix.lower() == ".pdf":
-            results.append(convert_pdf(src_path, file.filename, ocr, pdf_mode))
-        elif not is_supported(file.filename):
-            results.append(ConversionResult(name=file.filename, markdown="",
-                                            status="unsupported",
-                                            source_type=os.path.splitext(file.filename)[1]))
-        else:
-            r = convert_source(src_path, converter, display_name=file.filename)
-            ext = os.path.splitext(file.filename)[1].lower()
-            if ocr and ext in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"}:
-                r.model, r.pages_total, r.pages_ocr = ocr["model"], 1, 1
-            results.append(r)
-
+    results = _convert_upload(await file.read(), file.filename, ocr, pdf_mode)
     dur = int((_time.perf_counter() - t0) * 1000)
     for r in results:
         if r.status == "done":
             _persist(r, dur)
     return {"results": [_result_to_dict(r) for r in results]}
+
+
+@app.post("/api/convert-stream")
+async def convert_stream(file: UploadFile = File(...),
+                         ocr_enabled: bool = Form(False),
+                         endpoint: str | None = Form(None),
+                         model: str = Form(config.DEFAULT_VISION_MODEL),
+                         pdf_mode: str = Form("fast")):
+    data = await file.read()
+    filename = file.filename
+    ocr = llm_kwargs(ocr_enabled, endpoint, model)
+    q: "queue.Queue" = queue.Queue()
+
+    def on_page(i, n):
+        q.put({"type": "progress", "page": i, "total": n})
+
+    def work():
+        t0 = _time.perf_counter()
+        try:
+            results = _convert_upload(data, filename, ocr, pdf_mode, on_page=on_page)
+        except Exception as exc:
+            results = [ConversionResult(name=filename, markdown="", status="error",
+                                        error=str(exc), source_type="")]
+        dur = int((_time.perf_counter() - t0) * 1000)
+        for r in results:
+            if r.status == "done":
+                _persist(r, dur)
+        q.put({"type": "result", "results": [_result_to_dict(r) for r in results]})
+        q.put(None)
+
+    threading.Thread(target=work, daemon=True).start()
+
+    def gen():
+        while True:
+            ev = q.get()
+            if ev is None:
+                break
+            yield json.dumps(ev) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
 class UrlBody(BaseModel):

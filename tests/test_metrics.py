@@ -19,7 +19,7 @@ def test_convert_pdf_ai_sets_ocr_pages(monkeypatch, tmp_path):
     p.write_bytes(b"%PDF-1.4 fake")
     monkeypatch.setattr("server.pdf_text.page_count", lambda path: 5)
     monkeypatch.setattr("server.app.build_llm_client", lambda ep: object())
-    monkeypatch.setattr("server.app.ocr_pdf", lambda path, client, model: "# OCR")
+    monkeypatch.setattr("server.app.ocr_pdf", lambda path, client, model, on_page=None: "# OCR")
     r = A.convert_pdf(str(p), "f.pdf", ocr={"endpoint": "x", "model": "vm"}, mode="ai")
     assert r.status == "done"
     assert r.pages_total == 5 and r.pages_ocr == 5

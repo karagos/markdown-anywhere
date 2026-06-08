@@ -39,7 +39,7 @@
       outputFolder: "~/Documents/Markitdown Output", autoSave: false,
       ocrEnabled: false, provider: "LM Studio", endpoint: "http://localhost:1234/v1",
       model: "", models: [], connection: "idle", pdfMode: "fast",
-      historyRetentionDays: 7,
+      historyRetentionDays: 7, tagSavedWithModel: true,
     },
   };
 
@@ -77,6 +77,7 @@
   function applyResult(item, res) {
     item.status = res.status;
     item.markdown = res.markdown || "";
+    item.model = res.model || "";
     item.error = res.error || "";
     if (res.status === "done") {
       item.chars = res.chars || item.markdown.length;
@@ -92,34 +93,55 @@
     }
   }
 
+  function attachStreamResults(item, results) {
+    results = results || [];
+    if (!results.length) { item.status = "error"; item.errorShort = "No result"; return; }
+    applyResult(item, results[0]);
+    for (let i = 1; i < results.length; i++) {
+      const r = results[i]; const dd = L.detectType(r.name);
+      const sub = { id: uid(), name: r.name, kind: dd.kind, iconLabel: dd.label, typeLabel: dd.type,
+        size: null, status: r.status, markdown: r.markdown || "", model: r.model || "", selected: false };
+      if (r.status === "done") { sub.chars = r.chars || sub.markdown.length; sub.tokens = r.tokens != null ? r.tokens : L.estTokens(sub.markdown.length); addHistory(sub); }
+      state.queue.splice(state.queue.indexOf(item) + i, 0, sub);
+    }
+    if (item.status === "done") toast("ok", "Conversion complete", "Markdown is ready to preview.");
+  }
+
   async function convertFile(file) {
     const d = L.detectType(file.name);
     const item = { id: uid(), name: file.name, kind: d.kind, iconLabel: d.label, typeLabel: d.type,
       size: file.size, status: "converting", ocr: state.settings.ocrEnabled, markdown: "", selected: false };
     state.queue.unshift(item);
     renderView();
+    const fd = new FormData();
+    fd.append("file", file);
+    const o = ocrFields();
+    fd.append("ocr_enabled", o.ocr_enabled);
+    if (o.endpoint) fd.append("endpoint", o.endpoint);
+    fd.append("model", o.model);
+    fd.append("pdf_mode", state.settings.pdfMode || "fast");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const o = ocrFields();
-      fd.append("ocr_enabled", o.ocr_enabled);
-      if (o.endpoint) fd.append("endpoint", o.endpoint);
-      fd.append("model", o.model);
-      fd.append("pdf_mode", state.settings.pdfMode || "fast");
-      const data = await api("/api/convert", { method: "POST", body: fd });
-      const results = data.results || [];
-      if (!results.length) { item.status = "error"; item.errorShort = "No result"; }
-      else {
-        applyResult(item, results[0]);
-        for (let i = 1; i < results.length; i++) {
-          const r = results[i]; const dd = L.detectType(r.name);
-          const sub = { id: uid(), name: r.name, kind: dd.kind, iconLabel: dd.label, typeLabel: dd.type,
-            size: null, status: r.status, markdown: r.markdown || "", selected: false };
-          if (r.status === "done") { sub.chars = r.chars || sub.markdown.length; sub.tokens = r.tokens != null ? r.tokens : L.estTokens(sub.markdown.length); addHistory(sub); }
-          state.queue.splice(state.queue.indexOf(item) + i, 0, sub);
+      const resp = await fetch("/api/convert-stream", { method: "POST", body: fd });
+      if (!resp.body) {  // streaming unsupported → non-streaming fallback
+        const data = await (await fetch("/api/convert", { method: "POST", body: fd })).json();
+        attachStreamResults(item, data.results); renderView(); return;
+      }
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+          if (!line) continue;
+          let ev; try { ev = JSON.parse(line); } catch (_) { continue; }
+          if (ev.type === "progress") { item.ocr = true; item.ocrPage = ev.page; item.ocrTotal = ev.total; renderView(); }
+          else if (ev.type === "result") { attachStreamResults(item, ev.results); }
         }
       }
-      if (item.status === "done") toast("ok", "Conversion complete", "Markdown is ready to preview.");
     } catch (e) { item.status = "error"; item.errorShort = String(e); }
     renderView();
   }
@@ -147,7 +169,7 @@
   async function autoSave(item) {
     try {
       await api("/api/save", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folder: state.settings.outputFolder, files: [{ name: L.mdFilename(item.name), markdown: item.markdown }] }) });
+        body: JSON.stringify({ folder: state.settings.outputFolder, files: [{ name: L.taggedName(item.name, item.model, state.settings.tagSavedWithModel), markdown: item.markdown }] }) });
     } catch (_) {}
   }
 
@@ -159,7 +181,7 @@
     if (action === "remove") { state.queue = state.queue.filter((it) => it.id !== id); if (state.previewId === id) state.previewId = null; renderView(); return; }
     const it = findItem(id); if (!it) return;
     if (action === "copy") { try { await navigator.clipboard.writeText(it.markdown); } catch (_) {} toast("ok", "Copied to clipboard", L.fmtNum(it.markdown.length) + " chars"); }
-    if (action === "download") { downloadBlob(new Blob([it.markdown], { type: "text/markdown" }), L.mdFilename(it.name)); toast("ok", "Saved .md file", L.mdFilename(it.name)); }
+    if (action === "download") { const fn = L.taggedName(it.name, it.model, state.settings.tagSavedWithModel); downloadBlob(new Blob([it.markdown], { type: "text/markdown" }), fn); toast("ok", "Saved .md file", fn); }
     if (action === "save") { await saveToFolder([it]); }
     if (action === "preview") {
       state.view = "convert";
@@ -169,7 +191,7 @@
   }
 
   async function saveToFolder(items) {
-    const files = items.filter((x) => x.status === "done").map((x) => ({ name: L.mdFilename(x.name), markdown: x.markdown }));
+    const files = items.filter((x) => x.status === "done").map((x) => ({ name: L.taggedName(x.name, x.model, state.settings.tagSavedWithModel), markdown: x.markdown }));
     if (!files.length) return;
     try {
       const data = await api("/api/save", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -195,7 +217,7 @@
   async function downloadZip(items) {
     const zip = new JSZip(); const used = {};
     for (const it of items) {
-      let fn = L.mdFilename(it.name);
+      let fn = L.taggedName(it.name, it.model, state.settings.tagSavedWithModel);
       if (used[fn]) fn = fn.replace(/\.md$/, `-${used[fn]++}.md`); else used[fn] = 1;
       zip.file(fn, it.markdown);
     }
@@ -392,7 +414,7 @@
     if (state.dnd && state.dnd.over === realIdx && state.dnd.from !== realIdx) cls.push("is-dragover");
 
     const meta = h("div", { class: "qmeta" });
-    if (item.status === "converting") meta.append(h("span", { style: { color: "var(--warn)", fontWeight: "500" }, text: item.ocr ? "Converting (OCR)…" : "Converting…" }));
+    if (item.status === "converting") meta.append(h("span", { style: { color: "var(--warn)", fontWeight: "500" }, text: (item.ocr && item.ocrTotal) ? `OCR page ${item.ocrPage} / ${item.ocrTotal}` : (item.ocr ? "Converting (OCR)…" : "Converting…") }));
     else if (item.status === "error") meta.append(h("span", { style: { color: "var(--err)" }, text: item.errorShort || "Error" }));
     else if (item.status === "queued") meta.append(h("span", { text: item.typeLabel + " · waiting…" }));
     else meta.append(h("span", { text: item.typeLabel }), h("span", { class: "sep", text: "·" }),
@@ -402,7 +424,8 @@
     const nameRow = h("div", { class: "qname-row" }, [h("span", { class: "qname", text: item.name }), item.ocr && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null]);
     const body = h("div", { class: "qbody", style: { cursor: item.status === "done" ? "pointer" : "default" },
       onClick: () => { if (item.status === "done") { state.previewId = item.id; renderView(); } } }, [nameRow, meta]);
-    if (item.status === "converting") body.append(h("div", { class: "progress indet" }, [h("i")]));
+    if (item.status === "converting") body.append(h("div", { class: "progress" + ((item.ocr && item.ocrTotal) ? "" : " indet") },
+      [h("i", (item.ocr && item.ocrTotal) ? { style: { width: Math.round((item.ocrPage / item.ocrTotal) * 100) + "%" } } : {})]));
     if (item.status === "error" && item._expanded) body.append(h("div", { class: "errdetail", text: item.errorDetail || "" }));
 
     const actions = h("div", { class: "qactions" });
@@ -497,6 +520,7 @@
         h("div", { class: "seg" }, [
           h("button", { class: state.previewMode === "rendered" ? "on" : "", onClick: () => { state.previewMode = "rendered"; renderView(); }, text: "Rendered" }),
           h("button", { class: state.previewMode === "raw" ? "on" : "", onClick: () => { state.previewMode = "raw"; renderView(); }, text: "Raw" }),
+          h("button", { class: state.previewMode === "edit" ? "on" : "", onClick: () => { state.previewMode = "edit"; renderView(); }, text: "Edit" }),
         ]),
         h("span", { class: "saved-badge", title: "Token count of this Markdown (GPT-4o tokenizer)" }, [ic("coins"), " ≈ " + L.fmtNum(item.tokens || 0) + " tokens"]));
     }
@@ -504,6 +528,11 @@
     if (!item) {
       body.append(h("div", { class: "preview__empty" }, [h("div", { class: "dropzone__icon" }, [ic("eye")]),
         h("h3", { text: "Nothing to preview yet" }), h("p", { text: "Select a converted item to see its clean Markdown." })]));
+    } else if (state.previewMode === "edit") {
+      body.append(h("textarea", { class: "input",
+        style: { width: "100%", minHeight: "46vh", resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "13px" },
+        value: item.markdown,
+        onInput: (e) => { item.markdown = e.target.value; item.chars = e.target.value.length; item.tokens = L.estTokens(item.chars); } }));
     } else if (state.previewMode === "rendered") {
       const md = h("div", { class: "md" }); renderMarkdownInto(md, item.markdown); body.append(md);
     } else {
@@ -540,7 +569,7 @@
       ]);
     }
     const selected = rows.filter((r) => r._sel);
-    const asItems = (rs) => rs.map((r) => ({ name: r.name, markdown: r.markdown, status: "done" }));
+    const asItems = (rs) => rs.map((r) => ({ name: r.name, markdown: r.markdown, model: r.model, status: "done" }));
 
     const totalsCards = h("div", { class: "why-grid" }, [
       statCard("Files", L.fmtNum(t.files || 0)),
@@ -570,7 +599,7 @@
       h("td", { text: "~" + L.fmtNum(r.tokens) }),
       h("td", { text: r.pages_total ? `${r.pages_ocr}/${r.pages_total}` : "—" }),
       h("td", {}, [h("div", { class: "hist__act" }, [
-        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => downloadBlob(new Blob([r.markdown], { type: "text/markdown" }), L.mdFilename(r.name)) }, [ic("download")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => downloadBlob(new Blob([r.markdown], { type: "text/markdown" }), L.taggedName(r.name, r.model, state.settings.tagSavedWithModel)) }, [ic("download")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Delete", onClick: async () => { await fetch("/api/history/" + r.id, { method: "DELETE" }); await loadHistory(); renderView(); } }, [ic("trash")]),
       ])]),
     ]));
@@ -644,6 +673,8 @@
           ]),
           h("div", { class: "toggle-row" }, [sw(s.autoSave, () => setSetting({ autoSave: !s.autoSave })),
             h("div", { class: "toggle-text" }, [h("b", { text: "Auto-save converted files" }), h("span", { text: "Every converted file is written to the output folder automatically." })])]),
+          h("div", { class: "toggle-row" }, [sw(s.tagSavedWithModel, () => setSetting({ tagSavedWithModel: !s.tagSavedWithModel })),
+            h("div", { class: "toggle-text" }, [h("b", { text: "Tag saved files with the model" }), h("span", { text: "Append the vision model to OCR/AI filenames, e.g. report__qwen2.5-vl-7b.md. Files are never overwritten — a new version is saved." })])]),
         ]),
       ]),
       h("div", { class: "setcard" }, [
@@ -664,6 +695,7 @@
             h("div", { class: "row" }, [modelSelect, h("button", { class: "btn btn--ghost", onClick: testConnection }, [ic("plug"), " Test connection"])]),
             h("div", { class: "row", style: { marginTop: "2px" } }, [conn]),
             h("div", { class: "field__hint" }, ["Start LM Studio or run ", h("code", { text: "ollama serve" }), ". Suggested model: ", h("code", { text: "qwen2.5vl:7b" }), "."]),
+            h("div", { class: "field__hint", style: { color: "var(--accent-d)" }, text: "Tip: a vision model without “thinking” (e.g. qwen2.5-vl or a Gemma vision model) is faster and cleaner for OCR than a reasoning model." }),
           ]),
         ]),
       ]),

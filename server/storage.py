@@ -19,20 +19,27 @@ def _safe_name(name: str) -> str:
     return base
 
 
+def _unique_name(target: str, name: str, used: set) -> str:
+    """A name not colliding with files already on disk or used this call (versions on collision)."""
+    stem, ext = os.path.splitext(name)
+    candidate, i = name, 1
+    while candidate in used or os.path.exists(os.path.join(target, candidate)):
+        i += 1
+        candidate = f"{stem}-{i}{ext}"
+        if i > 9999:
+            break
+    used.add(candidate)
+    return candidate
+
+
 def save_markdown(folder: str, files: list[dict]) -> dict:
-    """Write each {name, markdown} to `folder`, de-duping names. Returns saved paths."""
+    """Write each {name, markdown} to `folder`, never overwriting (versions on collision)."""
     target = _expand(folder)
     os.makedirs(target, exist_ok=True)
     saved: list[str] = []
-    counts: dict[str, int] = {}
+    used: set = set()
     for f in files:
-        name = _safe_name(f.get("name") or "untitled.md")
-        if name in counts:
-            counts[name] += 1
-            stem, ext = os.path.splitext(name)
-            name = f"{stem}-{counts[name]}{ext}"
-        else:
-            counts[name] = 0
+        name = _unique_name(target, _safe_name(f.get("name") or "untitled.md"), used)
         path = os.path.join(target, name)
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(f.get("markdown") or "")

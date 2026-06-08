@@ -62,6 +62,13 @@ class FakeClient:
         self.chat = type("C", (), {"completions": _Completions(self)})
 
 
+def test_ocr_pdf_calls_on_page_per_page():
+    client = FakeClient()
+    seen = []
+    ocr_pdf(PDF2, client, "vm", prompt="x", scale=1.0, on_page=lambda i, n: seen.append((i, n)))
+    assert seen == [(1, 2), (2, 2)]
+
+
 def test_ocr_pdf_calls_model_once_per_page_and_concatenates():
     client = FakeClient()
     out = ocr_pdf(PDF2, client, "vision-model", prompt="OCR please", scale=1.0)
