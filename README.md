@@ -72,12 +72,29 @@ your computer**.
 
 ## Quick start
 
-### 1. Install Python 3.10+
+### 1. Download the app
+Pick whichever is easiest — you just need the project folder on your computer:
+
+- **Recommended — a release ZIP:** go to the
+  **[Releases page](https://github.com/karagos/markdown-anywhere/releases/latest)**
+  and under **Assets** download **`Source code (zip)`** (or the attached
+  `markdown-anywhere-vX.Y.Z.zip`).
+- **Or the green button:** on the
+  [repository home page](https://github.com/karagos/markdown-anywhere), click the
+  green **`Code`** button ▸ **Download ZIP**.
+- **Git users:** `git clone https://github.com/karagos/markdown-anywhere.git`
+
+Then **double-click the downloaded `.zip` to unzip it**. You'll get a
+`markdown-anywhere/` folder — that folder is the app.
+
+### 2. Install Python 3.10+
 One-time. Download from [python.org/downloads](https://www.python.org/downloads/).
 On **Windows**, tick **“Add Python to PATH”** during install.
 
-### 2. Launch
+### 3. Launch
+Open the unzipped `markdown-anywhere/` folder and:
 - **macOS:** double-click **`start.command`**
+  *(first time only: if macOS blocks it, right-click the file ▸ **Open** ▸ **Open**).*
 - **Windows:** double-click **`start.bat`**
 
 The first launch finds your Python, creates a virtual environment, installs
@@ -145,7 +162,9 @@ Browser UI  ──HTTP──▶  Local FastAPI server  ──▶  Microsoft Mark
                                                     + local vision model (OCR / AI PDF)
 ```
 
-- **Backend** (`server/`): Python + FastAPI. Wraps `markitdown[all]`; adds a
+- **Backend** (`server/`): Python + FastAPI. Wraps `markitdown` (with the
+  `pdf,docx,pptx,xls,xlsx,outlook,audio-transcription,youtube-transcription`
+  extras); adds a
   structured PDF extractor (`pdf_text.py`), a vision-OCR fallback (`pdf_ocr.py`), and
   endpoints for saving, folder selection, model listing, and persisted settings.
 - **Frontend** (`web/`): plain HTML/CSS/JS — **no build step, no framework runtime**.
