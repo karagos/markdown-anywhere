@@ -356,13 +356,15 @@
         ]),
       ]);
     }
+    const saved = state.history.reduce((s, hh) => s + L.estSaved(hh.kind, hh.tokens || 0), 0);
     return h("div", { class: "savings-strip" }, [
       h("span", { class: "ss-ic" }, [ic("coins")]),
       h("div", { class: "ss-main" }, [
-        h("div", { class: "ss-num" }, [h("b", { text: "≈ " + L.fmtNum(total) }), " tokens of clean Markdown this session"]),
-        h("div", { class: "ss-sub", text: `across ${count} file${count !== 1 ? "s" : ""} — ready to paste into your AI` }),
+        h("div", { class: "ss-num" }, [h("b", { text: "≈ " + L.fmtNum(total) }), " tokens of clean Markdown · ",
+          h("b", { style: { color: "var(--ok)" }, text: "≈ " + L.fmtNum(saved) }), " saved"]),
+        h("div", { class: "ss-sub", text: `across ${count} file${count !== 1 ? "s" : ""} this session — "saved" is an estimate vs. sending the raw files to your AI` }),
       ]),
-      h("span", { class: "ss-hint", title: "Counted with the GPT-4o tokenizer (o200k). Other models differ slightly.", text: "GPT-4o" }),
+      h("span", { class: "ss-hint", title: "Tokens counted with the GPT-4o tokenizer (o200k). “Saved” is a per-format estimate vs. raw uploads.", text: "estimate" }),
     ]);
   }
 
@@ -421,7 +423,7 @@
       h("span", { class: "mono", text: L.fmtNum(item.chars || 0) + " chars" }), h("span", { class: "sep", text: "·" }),
       h("span", { class: "mono", text: "~" + L.fmtNum(item.tokens || 0) + " tok" }));
 
-    const nameRow = h("div", { class: "qname-row" }, [h("span", { class: "qname", text: item.name }), item.ocr && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null]);
+    const nameRow = h("div", { class: "qname-row" }, [h("span", { class: "qname", text: item.name }), item.model && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null]);
     const body = h("div", { class: "qbody", style: { cursor: item.status === "done" ? "pointer" : "default" },
       onClick: () => { if (item.status === "done") { state.previewId = item.id; renderView(); } } }, [nameRow, meta]);
     if (item.status === "converting") body.append(h("div", { class: "progress" + ((item.ocr && item.ocrTotal) ? "" : " indet") },
