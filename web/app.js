@@ -351,8 +351,8 @@
       return h("div", { class: "savings-strip savings-strip--empty" }, [
         h("span", { class: "ss-ic" }, [ic("coins")]),
         h("div", { class: "ss-main" }, [
-          h("div", { class: "ss-num-empty", text: "Track the tokens you produce" }),
-          h("div", { class: "ss-sub", text: "Convert a file or link to start counting — clean Markdown is far more token-efficient than sending raw files." }),
+          h("div", { class: "ss-num-empty", text: "Track the tokens you save" }),
+          h("div", { class: "ss-sub", text: "Convert a file or link to start counting the tokens you save vs. sending raw files to your AI." }),
         ]),
       ]);
     }
@@ -362,10 +362,9 @@
     return h("div", { class: "savings-strip" }, [
       h("span", { class: "ss-ic" }, [ic("coins")]),
       h("div", { class: "ss-main" }, [
-        h("div", { class: "ss-num" }, [h("b", { text: "≈ " + L.fmtNum(total) }), " tokens of clean Markdown · ",
-          h("b", { style: { color: "var(--ok)" }, text: "≈ " + L.fmtNum(saved) + " saved" }),
-          h("b", { style: { color: "var(--ok)" }, text: " (≈ " + savedPct + "%)" })]),
-        h("div", { class: "ss-sub", text: `across ${count} file${count !== 1 ? "s" : ""} this session · you spend only ~${100 - savedPct}% of the raw tokens — estimate vs. sending the raw files to your AI` }),
+        h("div", { class: "ss-num" }, [h("b", { style: { color: "var(--ok)" }, text: "≈ " + L.fmtNum(saved) }), " tokens saved this session ",
+          h("b", { style: { color: "var(--ok)" }, text: "(≈ " + savedPct + "%)" })]),
+        h("div", { class: "ss-sub", text: `across ${count} file${count !== 1 ? "s" : ""} · estimated savings vs. sending the raw files to your AI` }),
       ]),
       h("span", { class: "ss-hint", title: "Tokens counted with the GPT-4o tokenizer (o200k). “Saved” is a per-format estimate vs. raw uploads.", text: "estimate" }),
     ]);
@@ -584,7 +583,7 @@
       statCard("OCR pages", L.fmtNum(t.ocr_pages || 0)),
       statCard("Total time", fmtMs(t.duration_ms || 0)),
       statCard("Est. tokens saved", "≈ " + L.fmtNum(t.saved_tokens_est || 0), "estimate vs raw uploads"),
-      statCard("Saved vs raw", "≈ " + savedPct + "%", `you spend only ~${100 - savedPct}% of the raw tokens`),
+      statCard("Saved vs raw", "≈ " + savedPct + "%", "estimated savings vs raw uploads"),
     ]);
 
     const modelTable = (st.by_model || []).length ? h("div", { class: "table-wrap", style: { marginTop: "16px" } }, [
