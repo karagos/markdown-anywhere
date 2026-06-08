@@ -573,12 +573,15 @@
     const selected = rows.filter((r) => r._sel);
     const asItems = (rs) => rs.map((r) => ({ name: r.name, markdown: r.markdown, model: r.model, status: "done" }));
 
+    const rawTotal = (t.tokens || 0) + (t.saved_tokens_est || 0);
+    const savedPct = rawTotal > 0 ? Math.round((t.saved_tokens_est || 0) / rawTotal * 100) : 0;
     const totalsCards = h("div", { class: "why-grid" }, [
       statCard("Files", L.fmtNum(t.files || 0)),
       statCard("Tokens of Markdown", L.fmtNum(t.tokens || 0)),
       statCard("OCR pages", L.fmtNum(t.ocr_pages || 0)),
       statCard("Total time", fmtMs(t.duration_ms || 0)),
       statCard("Est. tokens saved", "≈ " + L.fmtNum(t.saved_tokens_est || 0), "estimate vs raw uploads"),
+      statCard("Saved vs raw", "≈ " + savedPct + "%", `you spend only ~${100 - savedPct}% of the raw tokens`),
     ]);
 
     const modelTable = (st.by_model || []).length ? h("div", { class: "table-wrap", style: { marginTop: "16px" } }, [
