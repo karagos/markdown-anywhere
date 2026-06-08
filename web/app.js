@@ -357,12 +357,15 @@
       ]);
     }
     const saved = state.history.reduce((s, hh) => s + L.estSaved(hh.kind, hh.tokens || 0), 0);
+    const rawTotal = total + saved;
+    const savedPct = rawTotal > 0 ? Math.round(saved / rawTotal * 100) : 0;
     return h("div", { class: "savings-strip" }, [
       h("span", { class: "ss-ic" }, [ic("coins")]),
       h("div", { class: "ss-main" }, [
         h("div", { class: "ss-num" }, [h("b", { text: "≈ " + L.fmtNum(total) }), " tokens of clean Markdown · ",
-          h("b", { style: { color: "var(--ok)" }, text: "≈ " + L.fmtNum(saved) }), " saved"]),
-        h("div", { class: "ss-sub", text: `across ${count} file${count !== 1 ? "s" : ""} this session — "saved" is an estimate vs. sending the raw files to your AI` }),
+          h("b", { style: { color: "var(--ok)" }, text: "≈ " + L.fmtNum(saved) + " saved" }),
+          h("b", { style: { color: "var(--ok)" }, text: " (≈ " + savedPct + "%)" })]),
+        h("div", { class: "ss-sub", text: `across ${count} file${count !== 1 ? "s" : ""} this session · you spend only ~${100 - savedPct}% of the raw tokens — estimate vs. sending the raw files to your AI` }),
       ]),
       h("span", { class: "ss-hint", title: "Tokens counted with the GPT-4o tokenizer (o200k). “Saved” is a per-format estimate vs. raw uploads.", text: "estimate" }),
     ]);
