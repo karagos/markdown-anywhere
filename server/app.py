@@ -17,6 +17,8 @@ from server.pdf_ocr import build_llm_client, ocr_pdf, use_ai_pdf
 from server import pdf_text
 from server.tokens import count_tokens
 from server import youtube
+from server import history_store
+import time as _time
 
 app = FastAPI(title="Markitdown Local App")
 
@@ -35,6 +37,44 @@ def _result_to_dict(r: ConversionResult) -> dict:
             "error": r.error, "source_type": r.source_type,
             "tokens": count_tokens(md) if r.status == "done" else 0,
             "chars": len(md) if r.status == "done" else 0}
+
+
+def _kind_for(source_type: str) -> str:
+    st = (source_type or "").lower()
+    if st == "url":
+        return "web"
+    return {".pdf": "pdf", ".docx": "doc", ".doc": "doc",
+            ".xlsx": "xls", ".xls": "xls", ".csv": "xls",
+            ".pptx": "ppt", ".ppt": "ppt",
+            ".html": "web", ".htm": "web"}.get(st, "gen")
+
+
+def _persist(result: ConversionResult, duration_ms: int):
+    """Record a done conversion in history (unless retention is Off). Never raises."""
+    days = settings_store.load_settings().get("historyRetentionDays", 7)
+    if not days or days <= 0:
+        return
+    try:
+        md = strip_reasoning(result.markdown) if result.status == "done" else ""
+        history_store.add({
+            "name": result.name, "source_type": result.source_type,
+            "kind": _kind_for(result.source_type), "model": result.model,
+            "pdf_mode": result.pdf_mode, "duration_ms": duration_ms,
+            "tokens": count_tokens(md), "chars": len(md),
+            "pages_total": result.pages_total, "pages_ocr": result.pages_ocr,
+            "status": result.status, "markdown": md,
+        })
+        history_store.prune(days)
+    except Exception:
+        pass  # history must never break a conversion
+
+
+@app.on_event("startup")
+def _prune_history():
+    try:
+        history_store.prune(settings_store.load_settings().get("historyRetentionDays", 7))
+    except Exception:
+        pass
 
 
 def _ai_pdf(path: str, name: str, ocr: dict, label: str) -> ConversionResult:
@@ -94,6 +134,7 @@ async def convert(file: UploadFile = File(...),
     ocr = llm_kwargs(ocr_enabled, endpoint, model)
     converter = make_converter(ocr)
     results: list[ConversionResult] = []
+    t0 = _time.perf_counter()
 
     with tempfile.TemporaryDirectory() as tmp:
         suffix = os.path.splitext(file.filename)[1]
@@ -120,6 +161,10 @@ async def convert(file: UploadFile = File(...),
                 r.model, r.pages_total, r.pages_ocr = ocr["model"], 1, 1
             results.append(r)
 
+    dur = int((_time.perf_counter() - t0) * 1000)
+    for r in results:
+        if r.status == "done":
+            _persist(r, dur)
     return {"results": [_result_to_dict(r) for r in results]}
 
 
@@ -132,6 +177,7 @@ class UrlBody(BaseModel):
 
 @app.post("/api/convert-url")
 def convert_url(body: UrlBody):
+    t0 = _time.perf_counter()
     if youtube.is_youtube_url(body.url):
         vid = youtube.video_id(body.url)
         _s = settings_store.load_settings()
@@ -153,10 +199,14 @@ def convert_url(body: UrlBody):
                         f"disabled or no transcript. ({exc})")
             r = ConversionResult(name=body.url, markdown="", status="error",
                                  error=emsg, source_type="url")
+        if r.status == "done":
+            _persist(r, int((_time.perf_counter() - t0) * 1000))
         return {"results": [_result_to_dict(r)]}
     ocr = llm_kwargs(body.ocr_enabled, body.endpoint, body.model)
     converter = make_converter(ocr)
     r = convert_source(body.url, converter, is_url=True)
+    if r.status == "done":
+        _persist(r, int((_time.perf_counter() - t0) * 1000))
     return {"results": [_result_to_dict(r)]}
 
 
@@ -211,6 +261,32 @@ def youtube_cookies_status():
         return {"configured": True, **youtube.session_summary(youtube.build_session(path, text))}
     except Exception as exc:
         return {"configured": True, "count": 0, "loggedIn": False, "error": str(exc)}
+
+
+def _default_days():
+    return settings_store.load_settings().get("historyRetentionDays", 7) or 36500
+
+
+@app.get("/api/history")
+def history_list(days: int | None = None):
+    return {"entries": history_store.list_entries(days if days is not None else _default_days())}
+
+
+@app.get("/api/history/stats")
+def history_stats(days: int | None = None):
+    return history_store.stats(days if days is not None else _default_days())
+
+
+@app.delete("/api/history/{rid}")
+def history_delete(rid: str):
+    history_store.delete(rid)
+    return {"ok": True}
+
+
+@app.delete("/api/history")
+def history_clear():
+    history_store.clear()
+    return {"ok": True}
 
 
 @app.get("/api/settings")
