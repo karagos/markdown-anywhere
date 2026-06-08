@@ -786,7 +786,7 @@
         h("p", { text: "One tool for documents, data, slides, pages and more:" }),
         h("div", { class: "chips" }, ["PDF", "Word", "Excel", "PowerPoint", "CSV", "HTML", "JSON", "XML", "EPUB", "Images", "ZIP", "Web link", "YouTube"].map((f) => h("span", { class: "fmt", text: f }))),
       ]),
-      h("div", { class: "about-privacy" }, [h("span", { class: "ap-ic" }, [ic("lock")]), h("div", {}, [h("h2", { text: "Nothing leaves your machine" }), h("p", { text: "Markitdown runs as a small local server on your own computer. Files are converted on-device and never uploaded. History is kept only for the current session and cleared when you restart." })])]),
+      h("div", { class: "about-privacy" }, [h("span", { class: "ap-ic" }, [ic("lock")]), h("div", {}, [h("h2", { text: "Nothing leaves your machine" }), h("p", { text: "Markitdown runs as a small local server on your own computer. Files are converted on-device and never uploaded. History is kept locally for the retention window you choose in Settings (default 7 days), then auto-deleted — or set it to Off for session-only." })])]),
       h("div", { class: "about-foot" }, [
         h("span", { class: "mono", text: "Version 2.0.0" }), h("span", { class: "sep" }), "Powered by Microsoft MarkItDown",
         h("span", { class: "sep" }), h("span", {}, ["Made by ", h("strong", { text: "CAIO Group" })]),

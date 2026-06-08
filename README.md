@@ -101,7 +101,7 @@ The app has four sections in the sidebar:
 | Section | What it does |
 |--------|---------------|
 | **Convert** | Drop files or paste a link. Each item lands in a queue you can preview, copy, download, rename, reorder, merge, zip, or save to a folder. |
-| **History** | Every conversion this session (cleared on restart — nothing is stored unless you save it). |
+| **History** | A dashboard of your conversions kept locally for a retention window you choose (Settings → History; default 7 days, or Off). Shows per-model performance (avg time, time/page), totals, and lets you re-download, merge, zip, or save past results. |
 | **Settings** | Output folder + auto-save, OCR, PDF mode, theme. |
 | **About** | Why Markdown saves tokens, with examples. |
 
