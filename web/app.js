@@ -110,7 +110,7 @@
   async function convertFile(file) {
     const d = L.detectType(file.name);
     const item = { id: uid(), name: file.name, kind: d.kind, iconLabel: d.label, typeLabel: d.type,
-      size: file.size, status: "converting", ocr: state.settings.ocrEnabled, markdown: "", selected: false };
+      size: file.size, status: "converting", ocr: state.settings.ocrEnabled, markdown: "", selected: false, file: file };
     state.queue.unshift(item);
     renderView();
     const fd = new FormData();
@@ -146,14 +146,15 @@
     renderView();
   }
 
-  async function convertLink() {
-    const url = state.linkValue.trim(); if (!url) return;
+  async function convertLink(forceUrl) {
+    const url = (forceUrl || state.linkValue).trim(); if (!url) return;
     const clean = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const isYt = /youtube\.com|youtu\.be/i.test(url);
     const item = { id: uid(), name: clean.length > 42 ? clean.slice(0, 42) + "…" : clean, kind: "web",
-      iconLabel: "WEB", typeLabel: isYt ? "YouTube" : "Web link", size: null, status: "converting", ocr: false, markdown: "", selected: false };
+      iconLabel: "WEB", typeLabel: isYt ? "YouTube" : "Web link", size: null, status: "converting", ocr: false, markdown: "", selected: false, url: url };
     state.queue.unshift(item);
-    state.linkValue = ""; renderView();
+    if (!forceUrl) state.linkValue = "";
+    renderView();
     try {
       const o = ocrFields();
       const data = await api("/api/convert-url", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -164,6 +165,13 @@
       if (item.status === "done") toast("ok", "Conversion complete", "Markdown is ready to preview.");
     } catch (e) { item.status = "error"; item.errorShort = String(e); }
     renderView();
+  }
+
+  function reconvert(item) {
+    if (item.file) { convertFile(item.file); }
+    else if (item.kind === "web" && item.url) { convertLink(item.url); }
+    else return;
+    toast("ok", "Reconverting", "New version added with your current model.");
   }
 
   async function autoSave(item) {
@@ -425,7 +433,10 @@
       h("span", { class: "mono", text: L.fmtNum(item.chars || 0) + " chars" }), h("span", { class: "sep", text: "·" }),
       h("span", { class: "mono", text: "~" + L.fmtNum(item.tokens || 0) + " tok" }));
 
-    const nameRow = h("div", { class: "qname-row" }, [h("span", { class: "qname", text: item.name }), item.model && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null]);
+    const nameRow = h("div", { class: "qname-row" }, [
+      h("span", { class: "qname", text: item.name }),
+      item.model && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null,
+      item.model && item.status === "done" ? h("span", { class: "model-chip", text: item.model }) : null]);
     const body = h("div", { class: "qbody", style: { cursor: item.status === "done" ? "pointer" : "default" },
       onClick: () => { if (item.status === "done") { state.previewId = item.id; renderView(); } } }, [nameRow, meta]);
     if (item.status === "converting") body.append(h("div", { class: "progress" + ((item.ocr && item.ocrTotal) ? "" : " indet") },
@@ -438,7 +449,8 @@
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Preview", onClick: () => { state.previewId = item.id; renderView(); } }, [ic("eye")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Copy Markdown", onClick: () => onAction(item.id, "copy") }, [ic("copy")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => onAction(item.id, "download") }, [ic("download")]),
-        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Rename", onClick: () => startRename(item) }, [ic("pencil")]));
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Rename", onClick: () => startRename(item) }, [ic("pencil")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Reconvert with current model", onClick: () => reconvert(item) }, [ic("refresh")]));
     }
     if (item.status === "error") actions.append(h("button", { class: "btn btn--danger btn--sm", onClick: () => { item._expanded = !item._expanded; renderView(); }, text: item._expanded ? "Hide details" : "Show details" }));
     actions.append(h("button", { class: "btn btn--quiet btn--sm btn--icon del-act", title: item.status === "converting" ? "Cancel" : "Remove", onClick: () => onAction(item.id, "remove") }, [ic("trash")]));
