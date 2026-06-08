@@ -14,6 +14,24 @@ def test_convert_pdf_fast_text_sets_metrics(monkeypatch, tmp_path):
     assert r.pdf_mode == "fast"
 
 
+def test_history_rename_route_trims_and_calls_store(monkeypatch):
+    calls = []
+    monkeypatch.setattr("server.app.history_store.rename",
+                        lambda rid, name: calls.append((rid, name)))
+    out = A.history_rename("abc123", {"name": "  Renamed File  "})
+    assert out == {"ok": True}
+    assert calls == [("abc123", "Renamed File")]
+
+
+def test_history_rename_route_ignores_blank(monkeypatch):
+    calls = []
+    monkeypatch.setattr("server.app.history_store.rename",
+                        lambda rid, name: calls.append((rid, name)))
+    out = A.history_rename("abc123", {"name": "   "})
+    assert out == {"ok": True}
+    assert calls == []
+
+
 def test_convert_pdf_ai_sets_ocr_pages(monkeypatch, tmp_path):
     p = tmp_path / "f.pdf"
     p.write_bytes(b"%PDF-1.4 fake")

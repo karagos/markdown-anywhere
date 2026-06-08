@@ -29,6 +29,15 @@ def test_get_delete_clear(tmp_path):
     assert H.list_entries(30, db_path=db) == []
 
 
+def test_rename_updates_name(tmp_path):
+    db = str(tmp_path / "h.db")
+    rid = H.add(_entry(name="old.md"), db_path=db)
+    other = H.add(_entry(name="keep.md"), db_path=db)
+    H.rename(rid, "new.md", db_path=db)
+    assert H.get(rid, db_path=db)["name"] == "new.md"
+    assert H.get(other, db_path=db)["name"] == "keep.md"
+
+
 def test_prune_removes_old_keeps_recent(tmp_path):
     db = str(tmp_path / "h.db")
     now = 1_000_000.0

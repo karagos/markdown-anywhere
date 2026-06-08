@@ -110,7 +110,7 @@
   async function convertFile(file) {
     const d = L.detectType(file.name);
     const item = { id: uid(), name: file.name, kind: d.kind, iconLabel: d.label, typeLabel: d.type,
-      size: file.size, status: "converting", ocr: state.settings.ocrEnabled, markdown: "", selected: false };
+      size: file.size, status: "converting", ocr: state.settings.ocrEnabled, markdown: "", selected: false, file: file };
     state.queue.unshift(item);
     renderView();
     const fd = new FormData();
@@ -146,14 +146,15 @@
     renderView();
   }
 
-  async function convertLink() {
-    const url = state.linkValue.trim(); if (!url) return;
+  async function convertLink(forceUrl) {
+    const url = (forceUrl || state.linkValue).trim(); if (!url) return;
     const clean = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const isYt = /youtube\.com|youtu\.be/i.test(url);
     const item = { id: uid(), name: clean.length > 42 ? clean.slice(0, 42) + "…" : clean, kind: "web",
-      iconLabel: "WEB", typeLabel: isYt ? "YouTube" : "Web link", size: null, status: "converting", ocr: false, markdown: "", selected: false };
+      iconLabel: "WEB", typeLabel: isYt ? "YouTube" : "Web link", size: null, status: "converting", ocr: false, markdown: "", selected: false, url: url };
     state.queue.unshift(item);
-    state.linkValue = ""; renderView();
+    if (!forceUrl) state.linkValue = "";
+    renderView();
     try {
       const o = ocrFields();
       const data = await api("/api/convert-url", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -164,6 +165,13 @@
       if (item.status === "done") toast("ok", "Conversion complete", "Markdown is ready to preview.");
     } catch (e) { item.status = "error"; item.errorShort = String(e); }
     renderView();
+  }
+
+  function reconvert(item) {
+    if (item.file) { convertFile(item.file); }
+    else if (item.kind === "web" && item.url) { convertLink(item.url); }
+    else return;
+    toast("ok", "Reconverting", "New version added with your current model.");
   }
 
   async function autoSave(item) {
@@ -307,6 +315,37 @@
     node.replaceChildren(frag);
   }
 
+  function openMdModal(name, md) {
+    let mode = "rendered";
+    const back = h("div", { class: "md-modal__back", onClick: (e) => { if (e.target === back) back.remove(); } });
+    const body = h("div", { class: "md-modal__body" });
+    const draw = () => {
+      if (mode === "raw") body.replaceChildren(h("pre", { class: "md-modal__raw", text: md || "" }));
+      else renderMarkdownInto(body, md);
+    };
+    const tabs = h("div", { class: "md-modal__tabs" });
+    const renderToggle = () => tabs.replaceChildren(
+      h("button", { class: mode === "rendered" ? "on" : "", onClick: () => { mode = "rendered"; renderToggle(); draw(); }, text: "Rendered" }),
+      h("button", { class: mode === "raw" ? "on" : "", onClick: () => { mode = "raw"; renderToggle(); draw(); }, text: "Raw" }));
+    renderToggle(); draw();
+    const head = h("div", { class: "md-modal__head" }, [
+      h("span", { class: "md-modal__name", text: name }), tabs,
+      h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Close", onClick: () => back.remove() }, [ic("x")])]);
+    back.append(h("div", { class: "md-modal" }, [head, body]));
+    document.body.append(back);
+  }
+
+  async function renameHistory(r) {
+    const next = window.prompt("Rename this entry", r.name);
+    if (next == null) return;
+    const name = next.trim(); if (!name || name === r.name) return;
+    try {
+      await fetch("/api/history/" + r.id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+      await loadHistory(); renderView();
+      toast("ok", "Renamed", name);
+    } catch (e) { toast("info", "Could not rename", String(e)); }
+  }
+
   // ---- sidebar ----
   function renderSidebar() {
     const s = state.settings;
@@ -425,7 +464,10 @@
       h("span", { class: "mono", text: L.fmtNum(item.chars || 0) + " chars" }), h("span", { class: "sep", text: "·" }),
       h("span", { class: "mono", text: "~" + L.fmtNum(item.tokens || 0) + " tok" }));
 
-    const nameRow = h("div", { class: "qname-row" }, [h("span", { class: "qname", text: item.name }), item.model && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null]);
+    const nameRow = h("div", { class: "qname-row" }, [
+      h("span", { class: "qname", text: item.name }),
+      item.model && item.status === "done" ? h("span", { class: "ocr-badge", text: "OCR" }) : null,
+      item.model && item.status === "done" ? h("span", { class: "model-chip", text: item.model }) : null]);
     const body = h("div", { class: "qbody", style: { cursor: item.status === "done" ? "pointer" : "default" },
       onClick: () => { if (item.status === "done") { state.previewId = item.id; renderView(); } } }, [nameRow, meta]);
     if (item.status === "converting") body.append(h("div", { class: "progress" + ((item.ocr && item.ocrTotal) ? "" : " indet") },
@@ -438,7 +480,8 @@
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Preview", onClick: () => { state.previewId = item.id; renderView(); } }, [ic("eye")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Copy Markdown", onClick: () => onAction(item.id, "copy") }, [ic("copy")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => onAction(item.id, "download") }, [ic("download")]),
-        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Rename", onClick: () => startRename(item) }, [ic("pencil")]));
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Rename", onClick: () => startRename(item) }, [ic("pencil")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Reconvert with current model", onClick: () => reconvert(item) }, [ic("refresh")]));
     }
     if (item.status === "error") actions.append(h("button", { class: "btn btn--danger btn--sm", onClick: () => { item._expanded = !item._expanded; renderView(); }, text: item._expanded ? "Hide details" : "Show details" }));
     actions.append(h("button", { class: "btn btn--quiet btn--sm btn--icon del-act", title: item.status === "converting" ? "Cancel" : "Remove", onClick: () => onAction(item.id, "remove") }, [ic("trash")]));
@@ -606,7 +649,10 @@
       h("td", { text: "~" + L.fmtNum(r.tokens) }),
       h("td", { text: r.pages_total ? `${r.pages_ocr}/${r.pages_total}` : "—" }),
       h("td", {}, [h("div", { class: "hist__act" }, [
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Preview", onClick: () => openMdModal(r.name, r.markdown) }, [ic("eye")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Copy Markdown", onClick: async () => { try { await navigator.clipboard.writeText(r.markdown || ""); } catch (_) {} toast("ok", "Copied to clipboard", L.fmtNum((r.markdown || "").length) + " chars"); } }, [ic("copy")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Download .md", onClick: () => downloadBlob(new Blob([r.markdown], { type: "text/markdown" }), L.taggedName(r.name, r.model, state.settings.tagSavedWithModel)) }, [ic("download")]),
+        h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Rename", onClick: () => renameHistory(r) }, [ic("pencil")]),
         h("button", { class: "btn btn--quiet btn--sm btn--icon", title: "Delete", onClick: async () => { await fetch("/api/history/" + r.id, { method: "DELETE" }); await loadHistory(); renderView(); } }, [ic("trash")]),
       ])]),
     ]));

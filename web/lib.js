@@ -53,7 +53,7 @@
     const base = String(name).split(/[\\/]/).pop();
     const dot = base.lastIndexOf(".");
     const stem = dot > 0 ? base.slice(0, dot) : base;
-    const suf = tagOn && model ? "__" + modelSuffix(model) : "";
+    const suf = tagOn && model ? "-" + modelSuffix(model) : "";
     return stem + suf + ".md";
   }
 

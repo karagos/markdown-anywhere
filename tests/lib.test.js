@@ -3,7 +3,7 @@ const assert = require("node:assert");
 const { mergeSelected, mdFilename, estTokens, estSaved, detectType, fmtBytes, taggedName } = require("../web/lib.js");
 
 test("taggedName appends sanitized model when enabled", () => {
-  assert.strictEqual(taggedName("report.pdf", "google/gemma-4-e4b", true), "report__google-gemma-4-e4b.md");
+  assert.strictEqual(taggedName("report.pdf", "google/gemma-4-e4b", true), "report-google-gemma-4-e4b.md");
 });
 test("taggedName omits tag when disabled or no model", () => {
   assert.strictEqual(taggedName("report.pdf", "google/gemma-4-e4b", false), "report.md");
